@@ -78,15 +78,6 @@ public class Config {
   public static final String PROPAGATION_STYLE_EXTRACT = "propagation.style.extract";
   public static final String PROPAGATION_STYLE_INJECT = "propagation.style.inject";
 
-  public static final String JMX_FETCH_ENABLED = "jmxfetch.enabled";
-  public static final String JMX_FETCH_CONFIG_DIR = "jmxfetch.config.dir";
-  public static final String JMX_FETCH_CONFIG = "jmxfetch.config";
-  public static final String JMX_FETCH_METRICS_CONFIGS = "jmxfetch.metrics-configs";
-  public static final String JMX_FETCH_CHECK_PERIOD = "jmxfetch.check-period";
-  public static final String JMX_FETCH_REFRESH_BEANS_PERIOD = "jmxfetch.refresh-beans-period";
-  public static final String JMX_FETCH_STATSD_HOST = "jmxfetch.statsd.host";
-  public static final String JMX_FETCH_STATSD_PORT = "jmxfetch.statsd.port";
-
   public static final String LOGS_INJECTION_ENABLED = "logs.injection";
 
   public static final String SERVICE_TAG = "service";
@@ -180,15 +171,6 @@ public class Config {
   @Getter private final boolean runtimeContextFieldInjection;
   @Getter private final Set<PropagationStyle> propagationStylesToExtract;
   @Getter private final Set<PropagationStyle> propagationStylesToInject;
-
-  @Getter private final boolean jmxFetchEnabled;
-  @Getter private final String jmxFetchConfigDir;
-  @Getter private final List<String> jmxFetchConfigs;
-  @Deprecated @Getter private final List<String> jmxFetchMetricsConfigs;
-  @Getter private final Integer jmxFetchCheckPeriod;
-  @Getter private final Integer jmxFetchRefreshBeansPeriod;
-  @Getter private final String jmxFetchStatsdHost;
-  @Getter private final Integer jmxFetchStatsdPort;
 
   @Getter private final boolean logsInjectionEnabled;
 
@@ -287,18 +269,6 @@ public class Config {
             DEFAULT_PROPAGATION_STYLE_INJECT,
             PropagationStyle.class,
             true);
-
-    jmxFetchEnabled =
-        getBooleanSettingFromEnvironment(JMX_FETCH_ENABLED, DEFAULT_JMX_FETCH_ENABLED);
-    jmxFetchConfigDir = getSettingFromEnvironment(JMX_FETCH_CONFIG_DIR, null);
-    jmxFetchConfigs = getListSettingFromEnvironment(JMX_FETCH_CONFIG, null);
-    jmxFetchMetricsConfigs = getListSettingFromEnvironment(JMX_FETCH_METRICS_CONFIGS, null);
-    jmxFetchCheckPeriod = getIntegerSettingFromEnvironment(JMX_FETCH_CHECK_PERIOD, null);
-    jmxFetchRefreshBeansPeriod =
-        getIntegerSettingFromEnvironment(JMX_FETCH_REFRESH_BEANS_PERIOD, null);
-    jmxFetchStatsdHost = getSettingFromEnvironment(JMX_FETCH_STATSD_HOST, null);
-    jmxFetchStatsdPort =
-        getIntegerSettingFromEnvironment(JMX_FETCH_STATSD_PORT, DEFAULT_JMX_FETCH_STATSD_PORT);
 
     logsInjectionEnabled =
         getBooleanSettingFromEnvironment(LOGS_INJECTION_ENABLED, DEFAULT_LOGS_INJECTION_ENABLED);
@@ -401,21 +371,6 @@ public class Config {
         parsedPropagationStylesToInject == null
             ? parent.propagationStylesToInject
             : parsedPropagationStylesToInject;
-
-    jmxFetchEnabled =
-        getPropertyBooleanValue(properties, JMX_FETCH_ENABLED, parent.jmxFetchEnabled);
-    jmxFetchConfigDir = properties.getProperty(JMX_FETCH_CONFIG_DIR, parent.jmxFetchConfigDir);
-    jmxFetchConfigs = getPropertyListValue(properties, JMX_FETCH_CONFIG, parent.jmxFetchConfigs);
-    jmxFetchMetricsConfigs =
-        getPropertyListValue(properties, JMX_FETCH_METRICS_CONFIGS, parent.jmxFetchMetricsConfigs);
-    jmxFetchCheckPeriod =
-        getPropertyIntegerValue(properties, JMX_FETCH_CHECK_PERIOD, parent.jmxFetchCheckPeriod);
-    jmxFetchRefreshBeansPeriod =
-        getPropertyIntegerValue(
-            properties, JMX_FETCH_REFRESH_BEANS_PERIOD, parent.jmxFetchRefreshBeansPeriod);
-    jmxFetchStatsdHost = properties.getProperty(JMX_FETCH_STATSD_HOST, parent.jmxFetchStatsdHost);
-    jmxFetchStatsdPort =
-        getPropertyIntegerValue(properties, JMX_FETCH_STATSD_PORT, parent.jmxFetchStatsdPort);
 
     logsInjectionEnabled =
         getBooleanSettingFromEnvironment(LOGS_INJECTION_ENABLED, DEFAULT_LOGS_INJECTION_ENABLED);
@@ -525,35 +480,6 @@ public class Config {
     for (final String name : integrationNames) {
       final boolean configEnabled =
           getBooleanSettingFromEnvironment("integration." + name + ".enabled", defaultEnabled);
-      if (defaultEnabled) {
-        anyEnabled &= configEnabled;
-      } else {
-        anyEnabled |= configEnabled;
-      }
-    }
-    return anyEnabled;
-  }
-
-  public boolean isJmxFetchIntegrationEnabled(
-      final SortedSet<String> integrationNames, final boolean defaultEnabled) {
-    return jmxFetchIntegrationEnabled(integrationNames, defaultEnabled);
-  }
-
-  /**
-   * @deprecated This method should only be used internally. Use the instance getter instead {@link
-   *     #isJmxFetchIntegrationEnabled(SortedSet, boolean)}.
-   * @param integrationNames
-   * @param defaultEnabled
-   * @return
-   */
-  public static boolean jmxFetchIntegrationEnabled(
-      final SortedSet<String> integrationNames, final boolean defaultEnabled) {
-    // If default is enabled, we want to enable individually,
-    // if default is disabled, we want to disable individually.
-    boolean anyEnabled = defaultEnabled;
-    for (final String name : integrationNames) {
-      final boolean configEnabled =
-          getBooleanSettingFromEnvironment("jmxfetch." + name + ".enabled", defaultEnabled);
       if (defaultEnabled) {
         anyEnabled &= configEnabled;
       } else {
