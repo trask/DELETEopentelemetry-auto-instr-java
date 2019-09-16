@@ -95,13 +95,12 @@ public class TracingAgent {
 
   private static synchronized URL installBootstrapJar(final Instrumentation inst)
       throws IOException, URISyntaxException {
-    URL bootstrapURL = null;
 
     // First try Code Source
     final CodeSource codeSource = TracingAgent.class.getProtectionDomain().getCodeSource();
 
     if (codeSource != null) {
-      bootstrapURL = codeSource.getLocation();
+      URL bootstrapURL = codeSource.getLocation();
       final File bootstrapFile = new File(bootstrapURL.toURI());
 
       if (!bootstrapFile.isDirectory()) {
@@ -143,10 +142,10 @@ public class TracingAgent {
       throw new RuntimeException("Unable to parse javaagent parameter: " + agentArgument);
     }
 
-    bootstrapURL = new URL("file:" + matcher.group(1));
-    inst.appendToBootstrapClassLoaderSearch(new JarFile(new File(bootstrapURL.toURI())));
+    File file = new File(matcher.group(1));
+    inst.appendToBootstrapClassLoaderSearch(new JarFile(file));
 
-    return bootstrapURL;
+    return file.toURI().toURL();
   }
 
   private static List<String> getVMArgumentsThroughReflection() {

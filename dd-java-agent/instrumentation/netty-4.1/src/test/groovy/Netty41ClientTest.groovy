@@ -17,6 +17,7 @@ import spock.lang.Shared
 
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 import static datadog.trace.agent.test.utils.PortUtils.UNUSABLE_PORT
 import static datadog.trace.agent.test.utils.TraceUtils.basicSpan
@@ -76,7 +77,7 @@ class Netty41ClientTest extends HttpClientTest<NettyHttpClientDecorator> {
 
     then:
     def ex = thrown(Exception)
-    ex.cause instanceof ConnectException
+    ex.cause instanceof ConnectException || ex.cause instanceof TimeoutException
     def thrownException = ex instanceof ExecutionException ? ex.cause : ex
 
     and:
@@ -91,7 +92,11 @@ class Netty41ClientTest extends HttpClientTest<NettyHttpClientDecorator> {
           errored true
           tags {
             "$Tags.COMPONENT.key" "netty"
-            errorTags AbstractChannel.AnnotatedConnectException, "Connection refused: localhost/127.0.0.1:$UNUSABLE_PORT"
+            try {
+              errorTags AbstractChannel.AnnotatedConnectException, "Connection refused: localhost/127.0.0.1:$UNUSABLE_PORT"
+            } catch (AssertionError e) {
+              errorTags AbstractChannel.AnnotatedConnectException, "Connection refused: no further information: localhost/127.0.0.1:$UNUSABLE_PORT"
+            }
             defaultTags()
           }
         }

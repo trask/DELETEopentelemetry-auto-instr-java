@@ -84,7 +84,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "GET"
@@ -158,7 +158,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "GET"
@@ -219,7 +219,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "GET"
@@ -284,7 +284,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "POST"
@@ -327,7 +327,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "GET"
@@ -401,7 +401,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "GET"
@@ -451,7 +451,7 @@ class SpringWebfluxTest extends AgentTestRunner {
           tags {
             "$Tags.COMPONENT.key" "netty"
             "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-            "$Tags.PEER_HOSTNAME.key" "localhost"
+            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             "$Tags.HTTP_METHOD.key" "GET"
@@ -514,7 +514,7 @@ class SpringWebfluxTest extends AgentTestRunner {
             tags {
               "$Tags.COMPONENT.key" "netty"
               "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
-              "$Tags.PEER_HOSTNAME.key" "localhost"
+              "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
               "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
               "$Tags.PEER_PORT.key" Integer
               "$Tags.HTTP_METHOD.key" "GET"

@@ -105,7 +105,7 @@ class JettyServlet2Test extends HttpServerTest<Server, Servlet2Decorator> {
         }
         "$Tags.HTTP_STATUS.key" endpoint.status
         "$Tags.HTTP_URL.key" "${endpoint.resolve(address)}"
-        "$Tags.PEER_HOSTNAME.key" "localhost"
+        "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
         // No peer port
         "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
         "$Tags.HTTP_METHOD.key" method

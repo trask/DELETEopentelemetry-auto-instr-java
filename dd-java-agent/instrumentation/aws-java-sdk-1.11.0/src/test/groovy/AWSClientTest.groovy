@@ -347,10 +347,15 @@ class AWSClientTest extends AgentTestRunner {
               "$Tags.PEER_PORT.key" server.address.port
               "$Tags.HTTP_METHOD.key" "GET"
               "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_CLIENT
+
               try {
                 errorTags SocketException, "Socket closed"
               } catch (AssertionError e) {
-                errorTags RequestAbortedException, "Request aborted"
+                try {
+                  errorTags SocketException, "Socket Closed"
+                } catch (AssertionError f) {
+                  errorTags RequestAbortedException, "Request aborted"
+                }
               }
               defaultTags()
             }

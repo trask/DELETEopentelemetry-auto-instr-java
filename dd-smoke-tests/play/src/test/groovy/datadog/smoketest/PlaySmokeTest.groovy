@@ -10,8 +10,9 @@ class PlaySmokeTest extends AbstractServerSmokeTest {
 
   @Override
   ProcessBuilder createProcessBuilder() {
+    String ext = System.getProperty("os.name").startsWith("Windows") ? ".bat" : ""
     ProcessBuilder processBuilder =
-      new ProcessBuilder("${playDirectory}/bin/playBinary")
+      new ProcessBuilder("${playDirectory}/bin/playBinary" + ext)
     processBuilder.directory(playDirectory)
     processBuilder.environment().put("JAVA_OPTS",
       defaultJavaProperties.join(" ")

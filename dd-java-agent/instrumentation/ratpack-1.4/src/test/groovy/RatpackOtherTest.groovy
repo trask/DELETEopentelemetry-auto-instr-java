@@ -84,7 +84,7 @@ class RatpackOtherTest extends AgentTestRunner {
             "$Tags.HTTP_METHOD.key" "GET"
             "$Tags.HTTP_STATUS.key" 200
             "$Tags.HTTP_URL.key" "${app.address.resolve(path)}"
-            "$Tags.PEER_HOSTNAME.key" "$app.address.host"
+            "$Tags.PEER_HOSTNAME.key" { it == "$app.address.host" || it == "127.0.0.1" }
             "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             defaultTags()
@@ -103,7 +103,8 @@ class RatpackOtherTest extends AgentTestRunner {
             "$Tags.HTTP_METHOD.key" "GET"
             "$Tags.HTTP_STATUS.key" 200
             "$Tags.HTTP_URL.key" "${app.address.resolve(path)}"
-            "$Tags.PEER_HOSTNAME.key" "$app.address.host"
+            "$Tags.PEER_HOSTNAME.key" { it == "$app.address.host" || it == "127.0.0.1" }
+            "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
             "$Tags.PEER_PORT.key" Integer
             defaultTags()
           }

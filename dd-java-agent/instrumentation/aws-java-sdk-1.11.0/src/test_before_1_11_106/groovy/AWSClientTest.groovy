@@ -316,7 +316,11 @@ class AWSClientTest extends AgentTestRunner {
               try {
                 errorTags SocketException, "Socket closed"
               } catch (AssertionError e) {
-                errorTags RequestAbortedException, "Request aborted"
+                try {
+                  errorTags SocketException, "Socket Closed"
+                } catch (AssertionError f) {
+                  errorTags RequestAbortedException, "Request aborted"
+                }
               }
               defaultTags()
             }
