@@ -1,5 +1,0 @@
-apply from: "${rootDir}/gradle/java.gradle"
-
-dependencies {
-  testCompile group: 'org.springframework', name: 'spring-web', version: '4.3.7.RELEASE'
-}
