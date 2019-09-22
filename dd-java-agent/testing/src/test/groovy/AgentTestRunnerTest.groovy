@@ -68,45 +68,11 @@ class AgentTestRunnerTest extends AgentTestRunner {
     bootstrapClassesIncorrectlyLoaded == []
   }
 
-  def "waiting for child spans times out"() {
-    when:
-    runUnderTrace("parent") {
-      blockUntilChildSpansFinished(1)
-    }
-
-    then:
-    thrown(TimeoutException)
-  }
-
   def "logging works"() {
     when:
     org.slf4j.LoggerFactory.getLogger(AgentTestRunnerTest).debug("hello")
     then:
     noExceptionThrown()
-  }
-
-  def "excluded classes are not instrumented"() {
-    when:
-    runUnderTrace("parent") {
-      subject.run()
-    }
-
-    then:
-    !TRANSFORMED_CLASSES.contains(subject.class.name)
-    assertTraces(1) {
-      trace(0, 1) {
-        span(0) {
-          operationName "parent"
-        }
-      }
-    }
-
-    where:
-    subject                                                | _
-    new config.exclude.SomeClass()                         | _
-    new config.exclude.SomeClass.NestedClass()             | _
-    new config.exclude.packagename.SomeClass()             | _
-    new config.exclude.packagename.SomeClass.NestedClass() | _
   }
 
   def "test unblocked by completed span"() {
