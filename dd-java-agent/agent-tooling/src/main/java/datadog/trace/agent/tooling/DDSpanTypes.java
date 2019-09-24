@@ -1,4 +1,4 @@
-package datadog.trace.api;
+package datadog.trace.agent.tooling;
 
 public class DDSpanTypes {
   public static final String HTTP_CLIENT = "http";
