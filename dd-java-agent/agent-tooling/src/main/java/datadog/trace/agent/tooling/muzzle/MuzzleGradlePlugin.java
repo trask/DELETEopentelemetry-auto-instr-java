@@ -33,16 +33,14 @@ public class MuzzleGradlePlugin implements Plugin {
       return false;
     }
     // AutoService annotation is not retained at runtime. Check for Instrumenter.Default supertype
-    boolean isInstrumenter = false;
     TypeDefinition instrumenter = null == target ? null : target.getSuperClass();
     while (instrumenter != null) {
       if (instrumenter.equals(DefaultInstrumenterTypeDesc)) {
-        isInstrumenter = true;
-        break;
+        return true;
       }
       instrumenter = instrumenter.getSuperClass();
     }
-    return isInstrumenter;
+    return false;
   }
 
   @Override

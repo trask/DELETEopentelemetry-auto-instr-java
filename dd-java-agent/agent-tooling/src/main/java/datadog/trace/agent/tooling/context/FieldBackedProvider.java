@@ -72,7 +72,7 @@ import net.bytebuddy.utility.JavaModule;
 public class FieldBackedProvider implements InstrumentationContextProvider {
 
   /**
-   * Note: the value here has to be inside on of the prefixes in
+   * Note: the value here has to be inside of the prefixes in
    * datadog.trace.agent.tooling.Utils#BOOTSTRAP_PACKAGE_PREFIXES. This ensures that 'isolating' (or
    * 'module') classloaders like jboss and osgi see injected classes. This works because we
    * instrument those classloaders to load everything inside bootstrap packages.
