@@ -1,4 +1,4 @@
-import datadog.trace.api.Trace;
+import datadog.trace.agent.tooling.GlobalTracer;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,6 +54,7 @@ public class JavaAsyncChild extends ForkJoinTask implements Runnable, Callable {
     }
   }
 
-  @Trace(operationName = "asyncChild")
-  private void asyncChild() {}
+  private void asyncChild() {
+    GlobalTracer.get().spanBuilder("asyncChild").startSpan().end();
+  }
 }

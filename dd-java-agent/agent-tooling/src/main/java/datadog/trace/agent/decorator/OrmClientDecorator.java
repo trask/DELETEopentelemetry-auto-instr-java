@@ -1,7 +1,7 @@
 package datadog.trace.agent.decorator;
 
-import datadog.trace.api.DDTags;
-import io.opentracing.Span;
+import datadog.trace.agent.tooling.AttributeNames;
+import io.opentelemetry.trace.Span;
 
 public abstract class OrmClientDecorator extends DatabaseClientDecorator {
 
@@ -13,7 +13,7 @@ public abstract class OrmClientDecorator extends DatabaseClientDecorator {
     if (entity != null) {
       final String name = entityName(entity);
       if (name != null) {
-        span.setTag(DDTags.RESOURCE_NAME, name);
+        span.setAttribute(AttributeNames.RESOURCE_NAME, name);
       } // else we keep any existing resource.
     }
     return span;

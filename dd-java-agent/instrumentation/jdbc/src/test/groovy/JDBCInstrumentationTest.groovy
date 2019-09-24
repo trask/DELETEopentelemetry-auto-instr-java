@@ -2,9 +2,10 @@ import com.mchange.v2.c3p0.ComboPooledDataSource
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import datadog.trace.agent.test.AgentTestRunner
-import datadog.trace.api.Config
-import datadog.trace.api.DDSpanTypes
-import io.opentracing.tag.Tags
+import datadog.trace.agent.tooling.Config
+import datadog.trace.agent.tooling.DDSpanTypes
+import io.opentelemetry.proto.trace.v1.Span
+
 import javax.sql.DataSource
 import org.apache.derby.jdbc.EmbeddedDriver
 import org.h2.Driver
@@ -167,22 +168,21 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          serviceName renameService ? dbName.toLowerCase() : driver
-          operationName "${driver}.query"
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" renameService ? dbName.toLowerCase() : driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "component" "java-jdbc-statement"
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
@@ -230,22 +230,21 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          operationName "${driver}.query"
-          serviceName driver
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "component" "java-jdbc-prepared_statement"
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
@@ -285,22 +284,21 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          operationName "${driver}.query"
-          serviceName driver
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "component" "java-jdbc-prepared_statement"
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
@@ -340,22 +338,21 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          operationName "${driver}.query"
-          serviceName driver
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "component" "java-jdbc-prepared_statement"
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
@@ -395,22 +392,21 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          operationName "${driver}.query"
-          serviceName driver
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "component" "java-jdbc-statement"
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
@@ -453,22 +449,21 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          operationName "${driver}.query"
-          serviceName driver
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "component" "java-jdbc-prepared_statement"
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
@@ -524,17 +519,17 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          operationName "parent"
+          spanName "parent"
           parent()
         }
         span(1) {
-          operationName "${driver}.query"
-          serviceName driver
-          resourceName query
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           childOf span(0)
-          errored false
           tags {
+            "service.name" driver
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" driver
             if (username != null) {
               "db.user" username
@@ -544,7 +539,6 @@ class JDBCInstrumentationTest extends AgentTestRunner {
             } else {
               "component" "java-jdbc-statement"
             }
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
             defaultTags()
@@ -604,16 +598,15 @@ class JDBCInstrumentationTest extends AgentTestRunner {
     assertTraces(5) {
       trace(0, 1) {
         span(0) {
-          operationName "${dbType}.query"
-          serviceName dbType
-          resourceName query
-          spanType DDSpanTypes.SQL
-          errored false
+          spanKind Span.SpanKind.CLIENT
+          spanName "database.query"
           tags {
+            "service.name" dbType
+            "span.type" DDSpanTypes.SQL
+            "db.statement" query
             "db.type" dbType
             "db.user" "SA"
             "component" "java-jdbc-prepared_statement"
-            "span.kind" Tags.SPAN_KIND_CLIENT
             "db.instance" dbName.toLowerCase()
             "span.origin.type" String
             defaultTags()
@@ -623,16 +616,15 @@ class JDBCInstrumentationTest extends AgentTestRunner {
       for (int i = 1; i < numQueries; ++i) {
         trace(i, 1) {
           span(0) {
-            operationName "${dbType}.query"
-            serviceName dbType
-            resourceName query
-            spanType DDSpanTypes.SQL
-            errored false
+            spanKind Span.SpanKind.CLIENT
+            spanName "database.query"
             tags {
+              "service.name" dbType
+              "span.type" DDSpanTypes.SQL
+              "db.statement" query
               "db.type" dbType
               "db.user" "SA"
               "component" "java-jdbc-prepared_statement"
-              "span.kind" Tags.SPAN_KIND_CLIENT
               "db.instance" dbName.toLowerCase()
               "span.origin.type" String
               defaultTags()

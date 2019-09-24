@@ -1,18 +1,16 @@
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.DDSpanTypes
 import datadog.trace.agent.test.asserts.TraceAssert
 import datadog.trace.agent.test.base.HttpServerTest
-import datadog.trace.api.DDSpanTypes
 import datadog.trace.instrumentation.servlet2.Servlet2Decorator
-import io.opentracing.tag.Tags
-import javax.servlet.http.HttpServletRequest
+import io.opentelemetry.proto.trace.v1.Span
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.server.handler.ErrorHandler
 import org.eclipse.jetty.servlet.ServletContextHandler
 
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.AUTH_REQUIRED
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.ERROR
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.EXCEPTION
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.REDIRECT
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.SUCCESS
+import javax.servlet.http.HttpServletRequest
+
+import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.*
 
 class JettyServlet2Test extends HttpServerTest<Server, Servlet2Decorator> {
 
@@ -42,7 +40,7 @@ class JettyServlet2Test extends HttpServerTest<Server, Servlet2Decorator> {
 
     jettyServer.setHandler(servletContext)
     jettyServer.start()
-    
+
     return jettyServer
   }
 
@@ -63,11 +61,6 @@ class JettyServlet2Test extends HttpServerTest<Server, Servlet2Decorator> {
   }
 
   @Override
-  String expectedServiceName() {
-    CONTEXT
-  }
-
-  @Override
   String expectedOperationName() {
     return "servlet.request"
   }
@@ -80,11 +73,8 @@ class JettyServlet2Test extends HttpServerTest<Server, Servlet2Decorator> {
   // parent span must be cast otherwise it breaks debugging classloading (junit loads it early)
   void serverSpan(TraceAssert trace, int index, String traceID = null, String parentID = null, String method = "GET", ServerEndpoint endpoint = SUCCESS) {
     trace.span(index) {
-      serviceName expectedServiceName()
-      operationName expectedOperationName()
-      resourceName endpoint.status == 404 ? "404" : "$method ${endpoint.resolve(address).path}"
-      spanType DDSpanTypes.HTTP_SERVER
-      errored endpoint.errored
+      spanKind Span.SpanKind.SERVER
+      spanName expectedOperationName()
       if (parentID != null) {
         traceId traceID
         parentId parentID
@@ -92,24 +82,25 @@ class JettyServlet2Test extends HttpServerTest<Server, Servlet2Decorator> {
         parent()
       }
       tags {
+        "$AttributeNames.SPAN_TYPE" DDSpanTypes.HTTP_SERVER
+
         "servlet.context" "/$CONTEXT"
         "span.origin.type" TestServlet2.Sync.name
 
         defaultTags(true)
-        "$Tags.COMPONENT.key" serverDecorator.component()
+        "$AttributeNames.COMPONENT" serverDecorator.component()
         if (endpoint.errored) {
-          "$Tags.ERROR.key" endpoint.errored
+          "$AttributeNames.ERROR" true
           "error.msg" { it == null || it == EXCEPTION.body }
           "error.type" { it == null || it == Exception.name }
           "error.stack" { it == null || it instanceof String }
         }
-        "$Tags.HTTP_STATUS.key" endpoint.status
-        "$Tags.HTTP_URL.key" "${endpoint.resolve(address)}"
-        "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
+        "$AttributeNames.HTTP_STATUS" endpoint.status
+        "$AttributeNames.HTTP_URL" "${endpoint.resolve(address)}"
+        "$AttributeNames.PEER_HOSTNAME" { it == "localhost" || it == "127.0.0.1" }
         // No peer port
-        "$Tags.PEER_HOST_IPV4.key" "127.0.0.1"
-        "$Tags.HTTP_METHOD.key" method
-        "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
+        "$AttributeNames.PEER_HOST_IPV4" "127.0.0.1"
+        "$AttributeNames.HTTP_METHOD" method
       }
     }
   }

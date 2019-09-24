@@ -5,8 +5,8 @@ import static net.bytebuddy.matcher.ElementMatchers.isInterface;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.not;
 
+import datadog.trace.agent.tooling.Config;
 import datadog.trace.agent.tooling.Instrumenter;
-import datadog.trace.api.Config;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;

@@ -2,8 +2,8 @@ package datadog.trace.instrumentation.servlet3;
 
 import static datadog.trace.instrumentation.servlet3.Servlet3Decorator.DECORATE;
 
-import io.opentracing.Span;
-import io.opentracing.tag.Tags;
+import datadog.trace.agent.tooling.AttributeNames;
+import io.opentelemetry.trace.Span;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.servlet.AsyncEvent;
@@ -24,17 +24,17 @@ public class TagSettingAsyncListener implements AsyncListener {
     if (activated.compareAndSet(false, true)) {
       DECORATE.onResponse(span, (HttpServletResponse) event.getSuppliedResponse());
       DECORATE.beforeFinish(span);
-      span.finish();
+      span.end();
     }
   }
 
   @Override
   public void onTimeout(final AsyncEvent event) throws IOException {
     if (activated.compareAndSet(false, true)) {
-      Tags.ERROR.set(span, Boolean.TRUE);
-      span.setTag("timeout", event.getAsyncContext().getTimeout());
+      span.setAttribute(AttributeNames.ERROR, true);
+      span.setAttribute("timeout", event.getAsyncContext().getTimeout());
       DECORATE.beforeFinish(span);
-      span.finish();
+      span.end();
     }
   }
 
@@ -45,11 +45,11 @@ public class TagSettingAsyncListener implements AsyncListener {
       if (((HttpServletResponse) event.getSuppliedResponse()).getStatus()
           == HttpServletResponse.SC_OK) {
         // exception is thrown in filter chain, but status code is incorrect
-        Tags.HTTP_STATUS.set(span, 500);
+        span.setAttribute(AttributeNames.HTTP_STATUS, 500);
       }
       DECORATE.onError(span, event.getThrowable());
       DECORATE.beforeFinish(span);
-      span.finish();
+      span.end();
     }
   }
 

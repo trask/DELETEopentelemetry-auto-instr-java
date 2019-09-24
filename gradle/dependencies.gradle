@@ -3,7 +3,7 @@ def spockGroovyVer = groovyVer.replaceAll(/\.\d+$/, '')
 
 ext {
   versions = [
-    opentracing: '0.31.0',
+    opentelemetry: '0.1.0-SNAPSHOT',
 
     slf4j      : "1.7.28",
     guava      : "20.0", // Last version to support Java 7
@@ -22,14 +22,12 @@ ext {
   ]
 
   deps = [
-    // OpenTracing
-    opentracingApi : dependencies.create(group: 'io.opentracing', name: 'opentracing-api', version: versions.opentracing),
-    opentracing    : [
-      dependencies.create(group: 'io.opentracing', name: 'opentracing-api', version: versions.opentracing),
-      dependencies.create(group: 'io.opentracing', name: 'opentracing-noop', version: versions.opentracing),
-      dependencies.create(group: 'io.opentracing', name: 'opentracing-util', version: versions.opentracing),
+    // OpenTelemetry
+    opentelemetryApi : dependencies.create(group: 'io.opentelemetry', name: 'opentelemetry-api', version: versions.opentelemetry),
+    opentelemetry    : [
+      dependencies.create(group: 'io.opentelemetry', name: 'opentelemetry-api', version: versions.opentelemetry),
+      dependencies.create(group: 'io.opentelemetry', name: 'opentelemetry-sdk', version: versions.opentelemetry),
     ],
-    opentracingMock: dependencies.create(group: 'io.opentracing', name: 'opentracing-mock', version: versions.opentracing),
 
     // General
     slf4j          : "org.slf4j:slf4j-api:${versions.slf4j}",

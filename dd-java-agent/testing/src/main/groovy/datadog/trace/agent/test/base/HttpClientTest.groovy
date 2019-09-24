@@ -1,13 +1,12 @@
 package datadog.trace.agent.test.base
 
-import datadog.opentracing.DDSpan
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.Config
+import datadog.trace.agent.tooling.DDSpanTypes
 import datadog.trace.agent.decorator.HttpClientDecorator
 import datadog.trace.agent.test.AgentTestRunner
 import datadog.trace.agent.test.asserts.TraceAssert
-import datadog.trace.api.Config
-import datadog.trace.api.DDSpanTypes
-import datadog.trace.api.DDTags
-import io.opentracing.tag.Tags
+import io.opentelemetry.proto.trace.v1.Span
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Unroll
@@ -307,15 +306,16 @@ abstract class HttpClientTest<DECORATOR extends HttpClientDecorator> extends Age
   }
 
   // parent span must be cast otherwise it breaks debugging classloading (junit loads it early)
-  void clientSpan(TraceAssert trace, int index, Object parentSpan, String method = "GET", boolean renameService = false, boolean tagQueryString = false, URI uri = server.address.resolve("/success"), Integer status = 200, Throwable exception = null) {
+  void clientSpan(TraceAssert trace, int index, Span parentSpan, String method = "GET", boolean renameService = false, boolean tagQueryString = false, URI uri = server.address.resolve("/success"), Integer status = 200, Throwable exception = null) {
     trace.span(index) {
       if (parentSpan == null) {
         parent()
       } else {
-        childOf((DDSpan) parentSpan)
+        childOf(parentSpan)
       }
+      kind Span.SpanKind.CLIENT
       serviceName renameService ? "localhost" : "unnamed-java-app"
-      operationName expectedOperationName()
+      spanName expectedOperationName()
       resourceName "$method $uri.path"
       spanType DDSpanTypes.HTTP_CLIENT
       errored exception != null
@@ -324,20 +324,19 @@ abstract class HttpClientTest<DECORATOR extends HttpClientDecorator> extends Age
         if (exception) {
           errorTags(exception.class, exception.message)
         }
-        "$Tags.COMPONENT.key" clientDecorator.component()
+        "$AttributeNames.COMPONENT" clientDecorator.component()
         if (status) {
-          "$Tags.HTTP_STATUS.key" status
+          "$AttributeNames.HTTP_STATUS" status
         }
-        "$Tags.HTTP_URL.key" "${uri.resolve(uri.path)}"
+        "$AttributeNames.HTTP_URL" "${uri.resolve(uri.path)}"
         if (tagQueryString) {
-          "$DDTags.HTTP_QUERY" uri.query
-          "$DDTags.HTTP_FRAGMENT" { it == null || it == uri.fragment } // Optional
+          "$AttributeNames.HTTP_QUERY" uri.query
+          "$AttributeNames.HTTP_FRAGMENT" { it == null || it == uri.fragment } // Optional
         }
-        "$Tags.PEER_HOSTNAME.key" "localhost"
-        "$Tags.PEER_PORT.key" uri.port
-        "$Tags.PEER_HOST_IPV4.key" { it == null || it == "127.0.0.1" } // Optional
-        "$Tags.HTTP_METHOD.key" method
-        "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_CLIENT
+        "$AttributeNames.PEER_HOSTNAME" "localhost"
+        "$AttributeNames.PEER_PORT" uri.port
+        "$AttributeNames.PEER_HOST_IPV4" { it == null || it == "127.0.0.1" } // Optional
+        "$AttributeNames.HTTP_METHOD" method
       }
     }
   }

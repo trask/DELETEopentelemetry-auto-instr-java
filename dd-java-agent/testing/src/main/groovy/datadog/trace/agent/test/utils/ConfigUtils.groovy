@@ -1,6 +1,6 @@
 package datadog.trace.agent.test.utils
 
-import datadog.trace.api.Config
+import datadog.trace.agent.tooling.Config
 import lombok.SneakyThrows
 import net.bytebuddy.agent.ByteBuddyAgent
 import net.bytebuddy.agent.builder.AgentBuilder
@@ -96,7 +96,7 @@ class ConfigUtils {
           new AgentBuilder.LocationStrategy.Simple(
             ClassFileLocator.ForClassLoader.ofSystemLoader()))
         .ignore(none()) // Allow transforming bootstrap classes
-        .type(named("datadog.trace.api.Config"))
+        .type(named("datadog.trace.agent.tooling.Config"))
         .transform { builder, typeDescription, classLoader, module ->
           builder
             .field(named("INSTANCE"))

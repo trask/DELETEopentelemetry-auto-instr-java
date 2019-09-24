@@ -1,8 +1,9 @@
 package datadog.trace.instrumentation.java.concurrent;
 
+import datadog.trace.agent.tooling.GlobalTracer;
 import datadog.trace.bootstrap.ContextStore;
-import datadog.trace.bootstrap.instrumentation.java.concurrent.State;
-import datadog.trace.context.TraceScope;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.trace.Span;
 import lombok.extern.slf4j.Slf4j;
 
 /** Helper utils for Runnable/Callable instrumentation */
@@ -17,21 +18,15 @@ public class AdviceUtils {
    * @param <T> task's type
    * @return scope if scope was started, or null
    */
-  public static <T> TraceScope startTaskScope(
-      final ContextStore<T, State> contextStore, final T task) {
-    final State state = contextStore.get(task);
-    if (state != null) {
-      final TraceScope.Continuation continuation = state.getAndResetContinuation();
-      if (continuation != null) {
-        final TraceScope scope = continuation.activate();
-        scope.setAsyncPropagation(true);
-        return scope;
-      }
+  public static <T> Scope startTaskScope(final ContextStore<T, Span> contextStore, final T task) {
+    Span span = contextStore.get(task);
+    if (span != null) {
+      return GlobalTracer.get().withSpan(span);
     }
     return null;
   }
 
-  public static void endTaskScope(final TraceScope scope) {
+  public static void endTaskScope(final Scope scope) {
     if (scope != null) {
       scope.close();
     }

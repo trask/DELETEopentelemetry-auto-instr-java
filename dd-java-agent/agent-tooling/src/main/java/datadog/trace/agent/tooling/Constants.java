@@ -17,8 +17,7 @@ public final class Constants {
     "datadog.trace.agent.TracingAgent",
     "datadog.trace.api",
     "datadog.trace.bootstrap",
-    "datadog.trace.context",
-    "io.opentracing",
+    "datadog.trace.context"
   };
 
   // This is used in IntegrationTestUtils.java
@@ -26,6 +25,8 @@ public final class Constants {
     "datadog.trace.common",
     "datadog.trace.agent",
     "datadog.trace.instrumentation",
+    // OpenTelemetry
+    "io.opentelemetry",
     // guava
     "com.google.auto",
     "com.google.common",
@@ -34,8 +35,6 @@ public final class Constants {
     "com.blogspot.mydailyjava.weaklockfree",
     // bytebuddy
     "net.bytebuddy",
-    // OT contribs for dd trace resolver
-    "io.opentracing.contrib",
     // jackson
     "org.msgpack",
     "com.fasterxml.jackson",

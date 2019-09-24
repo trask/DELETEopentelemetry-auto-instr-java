@@ -1,9 +1,8 @@
 package datadog.trace.agent.decorator
 
-import datadog.trace.api.Config
-import datadog.trace.api.DDTags
-import io.opentracing.Span
-import io.opentracing.tag.Tags
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.Config
+import io.opentelemetry.trace.Span
 
 import static datadog.trace.agent.test.utils.ConfigUtils.withConfigOverride
 
@@ -20,13 +19,12 @@ class DatabaseClientDecoratorTest extends ClientDecoratorTest {
 
     then:
     if (serviceName != null) {
-      1 * span.setTag(DDTags.SERVICE_NAME, serviceName)
+      1 * span.setAttribute(AttributeNames.SERVICE_NAME, serviceName)
     }
-    1 * span.setTag(Tags.COMPONENT.key, "test-component")
-    1 * span.setTag(Tags.SPAN_KIND.key, "client")
-    1 * span.setTag(Tags.DB_TYPE.key, "test-db")
-    1 * span.setTag(DDTags.SPAN_TYPE, "test-type")
-    1 * span.setTag(DDTags.ANALYTICS_SAMPLE_RATE, 1.0)
+    1 * span.setAttribute(AttributeNames.COMPONENT, "test-component")
+    1 * span.setAttribute(AttributeNames.DB_TYPE, "test-db")
+    1 * span.setAttribute(AttributeNames.SPAN_TYPE, "test-type")
+    1 * span.setAttribute(AttributeNames.ANALYTICS_SAMPLE_RATE, 1.0)
     0 * _
 
     where:
@@ -44,10 +42,14 @@ class DatabaseClientDecoratorTest extends ClientDecoratorTest {
 
     then:
     if (session) {
-      1 * span.setTag(Tags.DB_USER.key, session.user)
-      1 * span.setTag(Tags.DB_INSTANCE.key, session.instance)
-      if (renameService && session.instance) {
-        1 * span.setTag(DDTags.SERVICE_NAME, session.instance)
+      if (session.user != null) {
+        1 * span.setAttribute(AttributeNames.DB_USER, session.user)
+      }
+      if (session.instance != null) {
+        1 * span.setAttribute(AttributeNames.DB_INSTANCE, session.instance)
+        if (renameService) {
+          1 * span.setAttribute(AttributeNames.SERVICE_NAME, session.instance)
+        }
       }
     }
     0 * _
@@ -68,7 +70,9 @@ class DatabaseClientDecoratorTest extends ClientDecoratorTest {
     decorator.onStatement(span, statement)
 
     then:
-    1 * span.setTag(Tags.DB_STATEMENT.key, statement)
+    if (statement != null) {
+      1 * span.setAttribute(AttributeNames.DB_STATEMENT, statement)
+    }
     0 * _
 
     where:

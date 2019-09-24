@@ -9,7 +9,6 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.none;
 import static net.bytebuddy.matcher.ElementMatchers.not;
 
-import datadog.trace.api.Config;
 import java.lang.instrument.Instrumentation;
 import java.util.Collections;
 import java.util.List;
@@ -81,7 +80,6 @@ public class AgentInstaller {
                                 .or(
                                     named(
                                         "datadog.trace.bootstrap.instrumentation.java.concurrent.CallableWrapper")))))
-            .or(nameStartsWith("datadog.opentracing."))
             .or(nameStartsWith("datadog.slf4j."))
             .or(nameStartsWith("net.bytebuddy."))
             .or(

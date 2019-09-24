@@ -12,12 +12,6 @@ public class VersionLogger {
   /** Log version strings for dd-trace-ot, dd-trace-pai, and dd-java-agent */
   public static void logAllVersions() {
     log.info(
-        "dd-trace-ot - version: {}",
-        getVersionString(Utils.getAgentClassLoader().getResourceAsStream("dd-trace-ot.version")));
-    log.info(
-        "dd-trace-api - version: {}",
-        getVersionString(Utils.getAgentClassLoader().getResourceAsStream("dd-trace-api.version")));
-    log.info(
         "dd-java-agent - version: {}",
         getVersionString(
             ClassLoader.getSystemClassLoader().getResourceAsStream("dd-java-agent.version")));

@@ -1,18 +1,16 @@
 package datadog.trace.agent.test.base
 
-import datadog.opentracing.DDSpan
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.DDSpanTypes
 import datadog.trace.agent.decorator.HttpServerDecorator
 import datadog.trace.agent.test.AgentTestRunner
-import datadog.trace.agent.test.asserts.ListWriterAssert
+import datadog.trace.agent.test.asserts.InMemoryExporterAssert
 import datadog.trace.agent.test.asserts.TraceAssert
 import datadog.trace.agent.test.utils.OkHttpUtils
 import datadog.trace.agent.test.utils.PortUtils
-import datadog.trace.api.DDSpanTypes
-import datadog.trace.context.TraceScope
 import groovy.transform.stc.ClosureParams
 import groovy.transform.stc.SimpleType
-import io.opentracing.tag.Tags
-import io.opentracing.util.GlobalTracer
+import io.opentelemetry.proto.trace.v1.Span
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -23,11 +21,7 @@ import spock.lang.Unroll
 import java.util.concurrent.atomic.AtomicBoolean
 
 import static datadog.trace.agent.test.asserts.TraceAssert.assertTrace
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.ERROR
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.EXCEPTION
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.NOT_FOUND
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.REDIRECT
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.SUCCESS
+import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.*
 import static datadog.trace.agent.test.utils.TraceUtils.basicSpan
 import static datadog.trace.agent.test.utils.TraceUtils.runUnderTrace
 import static org.junit.Assume.assumeTrue
@@ -71,10 +65,6 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
   abstract void stopServer(SERVER server)
 
   abstract DECORATOR decorator()
-
-  String expectedServiceName() {
-    "unnamed-java-app"
-  }
 
   abstract String expectedOperationName()
 
@@ -152,7 +142,8 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
   }
 
   static <T> T controller(ServerEndpoint endpoint, Closure<T> closure) {
-    assert ((TraceScope) GlobalTracer.get().scopeManager().active()).asyncPropagating
+    // TODO trask
+    // assert ((TraceScope) GlobalTracer.get().scopeManager().active()).asyncPropagating
     if (endpoint == NOT_FOUND) {
       return closure()
     }
@@ -198,11 +189,10 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
 
   def "test success with parent"() {
     setup:
-    def traceId = "123"
-    def parentId = "456"
+    def traceId = "00000000000000000000000000000123"
+    def spanId = "0000000000000456"
     def request = request(SUCCESS, method, body)
-      .header("x-datadog-trace-id", traceId)
-      .header("x-datadog-parent-id", parentId)
+      .header("traceparent", "00-" + traceId + "-" + spanId + "-00")
       .build()
     def response = client.newCall(request).execute()
 
@@ -214,13 +204,13 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
     cleanAndAssertTraces(1) {
       if (hasHandlerSpan()) {
         trace(0, 3) {
-          serverSpan(it, 0, traceId, parentId)
+          serverSpan(it, 0, traceId, spanId)
           handlerSpan(it, 1, span(0))
           controllerSpan(it, 2, span(1))
         }
       } else {
         trace(0, 2) {
-          serverSpan(it, 0, traceId, parentId)
+          serverSpan(it, 0, traceId, spanId)
           controllerSpan(it, 1, span(0))
         }
       }
@@ -357,15 +347,14 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
 
   void cleanAndAssertTraces(
     final int size,
-    @ClosureParams(value = SimpleType, options = "datadog.trace.agent.test.asserts.ListWriterAssert")
-    @DelegatesTo(value = ListWriterAssert, strategy = Closure.DELEGATE_FIRST)
+    @ClosureParams(value = SimpleType, options = "datadog.trace.agent.test.asserts.InMemoryExporterAssert")
+    @DelegatesTo(value = InMemoryExporterAssert, strategy = Closure.DELEGATE_FIRST)
     final Closure spec) {
 
     // If this is failing, make sure HttpServerTestAdvice is applied correctly.
-    TEST_WRITER.waitForTraces(size * 2)
-    // TEST_WRITER is a CopyOnWriteArrayList, which doesn't support remove()
-    def toRemove = TEST_WRITER.findAll {
-      it.size() == 1 && it.get(0).operationName == "TEST_SPAN"
+    TEST_EXPORTER.waitForTraces(size * 2)
+    def toRemove = TEST_EXPORTER.traces.findAll {
+      it.size() == 1 && it.get(0).name == "TEST_SPAN"
     }
     toRemove.each {
       assertTrace(it, 1) {
@@ -373,12 +362,12 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
       }
     }
     assert toRemove.size() == size
-    TEST_WRITER.removeAll(toRemove)
+    TEST_EXPORTER.traces.removeAll(toRemove)
 
     if (reorderHandlerSpan()) {
-      TEST_WRITER.each {
+      TEST_EXPORTER.traces.each {
         def controllerSpan = it.find {
-          it.operationName == reorderHandlerSpan()
+          it.name == reorderHandlerSpan()
         }
         if (controllerSpan) {
           it.remove(controllerSpan)
@@ -389,9 +378,9 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
 
     if (reorderControllerSpan() || reorderHandlerSpan()) {
       // Some frameworks close the handler span before the controller returns, so we need to manually reorder it.
-      TEST_WRITER.each {
+      TEST_EXPORTER.traces.each {
         def controllerSpan = it.find {
-          it.operationName == "controller"
+          it.name == "controller"
         }
         if (controllerSpan) {
           it.remove(controllerSpan)
@@ -405,11 +394,9 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
 
   void controllerSpan(TraceAssert trace, int index, Object parent, String errorMessage = null) {
     trace.span(index) {
-      serviceName expectedServiceName()
-      operationName "controller"
-      resourceName "controller"
-      errored errorMessage != null
-      childOf(parent as DDSpan)
+      spanKind Span.SpanKind.INTERNAL
+      spanName "controller"
+      childOf(parent as Span)
       tags {
         defaultTags()
         if (errorMessage) {
@@ -426,11 +413,8 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
   // parent span must be cast otherwise it breaks debugging classloading (junit loads it early)
   void serverSpan(TraceAssert trace, int index, String traceID = null, String parentID = null, String method = "GET", ServerEndpoint endpoint = SUCCESS) {
     trace.span(index) {
-      serviceName expectedServiceName()
-      operationName expectedOperationName()
-      resourceName endpoint.status == 404 ? "404" : "$method ${endpoint.resolve(address).path}"
-      spanType DDSpanTypes.HTTP_SERVER
-      errored endpoint.errored
+      spanKind Span.SpanKind.SERVER
+      spanName expectedOperationName()
       if (parentID != null) {
         traceId traceID
         parentId parentID
@@ -438,22 +422,23 @@ abstract class HttpServerTest<SERVER, DECORATOR extends HttpServerDecorator> ext
         parent()
       }
       tags {
+        "$AttributeNames.SPAN_TYPE" DDSpanTypes.HTTP_SERVER
+
         defaultTags(true)
-        "$Tags.COMPONENT.key" serverDecorator.component()
+        "$AttributeNames.COMPONENT" serverDecorator.component()
         if (endpoint.errored) {
-          "$Tags.ERROR.key" endpoint.errored
+          "$AttributeNames.ERROR" true
         }
-        "$Tags.HTTP_STATUS.key" endpoint.status
-        "$Tags.HTTP_URL.key" "${endpoint.resolve(address)}"
+        "$AttributeNames.HTTP_STATUS" endpoint.status
+        "$AttributeNames.HTTP_URL" "${endpoint.resolve(address)}"
 //        if (tagQueryString) {
 //          "$DDTags.HTTP_QUERY" uri.query
 //          "$DDTags.HTTP_FRAGMENT" { it == null || it == uri.fragment } // Optional
 //        }
-        "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
-        "$Tags.PEER_PORT.key" Integer
-        "$Tags.PEER_HOST_IPV4.key" { it == null || it == "127.0.0.1" } // Optional
-        "$Tags.HTTP_METHOD.key" method
-        "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
+        "$AttributeNames.PEER_HOSTNAME" { it == "localhost" || it == "127.0.0.1" }
+        "$AttributeNames.PEER_PORT" Integer
+        "$AttributeNames.PEER_HOST_IPV4" { it == null || it == "127.0.0.1" } // Optional
+        "$AttributeNames.HTTP_METHOD" method
       }
     }
   }

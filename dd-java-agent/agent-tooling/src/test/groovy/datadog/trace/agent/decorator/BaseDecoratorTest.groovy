@@ -1,15 +1,10 @@
 package datadog.trace.agent.decorator
 
-
+import datadog.trace.agent.tooling.AttributeNames
 import datadog.trace.agent.test.utils.ConfigUtils
-import datadog.trace.api.DDTags
-import io.opentracing.Scope
-import io.opentracing.Span
-import io.opentracing.tag.Tags
+import io.opentelemetry.trace.Span
 import spock.lang.Shared
 import spock.lang.Specification
-
-import static io.opentracing.log.Fields.ERROR_OBJECT
 
 class BaseDecoratorTest extends Specification {
 
@@ -27,9 +22,9 @@ class BaseDecoratorTest extends Specification {
     decorator.afterStart(span)
 
     then:
-    1 * span.setTag(DDTags.SPAN_TYPE, decorator.spanType())
-    1 * span.setTag(Tags.COMPONENT.key, "test-component")
-    _ * span.setTag(_, _) // Want to allow other calls from child implementations.
+    1 * span.setAttribute(AttributeNames.SPAN_TYPE, decorator.spanType())
+    1 * span.setAttribute(AttributeNames.COMPONENT, "test-component")
+    _ * span.setAttribute(_, _) // Want to allow other calls from child implementations.
     0 * _
   }
 
@@ -39,16 +34,16 @@ class BaseDecoratorTest extends Specification {
 
     then:
     if (connection.getAddress()) {
-      2 * span.setTag(Tags.PEER_HOSTNAME.key, connection.hostName)
+      2 * span.setAttribute(AttributeNames.PEER_HOSTNAME, connection.hostName)
     } else {
-      1 * span.setTag(Tags.PEER_HOSTNAME.key, connection.hostName)
+      1 * span.setAttribute(AttributeNames.PEER_HOSTNAME, connection.hostName)
     }
-    1 * span.setTag(Tags.PEER_PORT.key, connection.port)
+    1 * span.setAttribute(AttributeNames.PEER_PORT, connection.port)
     if (connection.address instanceof Inet4Address) {
-      1 * span.setTag(Tags.PEER_HOST_IPV4.key, connection.address.hostAddress)
+      1 * span.setAttribute(AttributeNames.PEER_HOST_IPV4, connection.address.hostAddress)
     }
     if (connection.address instanceof Inet6Address) {
-      1 * span.setTag(Tags.PEER_HOST_IPV6.key, connection.address.hostAddress)
+      1 * span.setAttribute(AttributeNames.PEER_HOST_IPV6, connection.address.hostAddress)
     }
     0 * _
 
@@ -65,8 +60,8 @@ class BaseDecoratorTest extends Specification {
 
     then:
     if (error) {
-      1 * span.setTag(Tags.ERROR.key, true)
-      1 * span.log([(ERROR_OBJECT): error])
+      1 * span.setAttribute(AttributeNames.ERROR, true)
+      1 * span.addEvent("error", _)
     }
     0 * _
 
@@ -110,46 +105,22 @@ class BaseDecoratorTest extends Specification {
 
   def "test assert null scope"() {
     when:
-    decorator.afterStart((Scope) null)
+    decorator.afterStart((Span) null)
 
     then:
     thrown(AssertionError)
 
     when:
-    decorator.onError((Scope) null, null)
+    decorator.onError((Span) null, null)
 
     then:
     thrown(AssertionError)
 
     when:
-    decorator.beforeFinish((Scope) null)
+    decorator.beforeFinish((Span) null)
 
     then:
     thrown(AssertionError)
-  }
-
-  def "test assert non-null scope"() {
-    setup:
-    def span = Mock(Span)
-    def scope = Mock(Scope)
-
-    when:
-    decorator.afterStart(scope)
-
-    then:
-    1 * scope.span() >> span
-
-    when:
-    decorator.onError(scope, null)
-
-    then:
-    1 * scope.span() >> span
-
-    when:
-    decorator.beforeFinish(scope)
-
-    then:
-    1 * scope.span() >> span
   }
 
   def "test analytics rate default disabled"() {

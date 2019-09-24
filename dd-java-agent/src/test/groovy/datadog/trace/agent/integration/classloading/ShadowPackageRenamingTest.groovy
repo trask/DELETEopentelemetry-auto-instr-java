@@ -3,11 +3,11 @@ package datadog.trace.agent.integration.classloading
 import com.google.common.collect.MapMaker
 import com.google.common.reflect.ClassPath
 import datadog.trace.agent.test.IntegrationTestUtils
-import io.opentracing.util.GlobalTracer
+import org.junit.Ignore
 import spock.lang.Specification
 
-import java.lang.reflect.Field
-
+// TODO trask
+@Ignore
 class ShadowPackageRenamingTest extends Specification {
   def "agent dependencies renamed"() {
     setup:
@@ -31,19 +31,6 @@ class ShadowPackageRenamingTest extends Specification {
     agentSource.getProtocol() == "x-internal-jar"
     agentSource == agentGuavaDep
     agentSource.getFile() != userGuava.getFile()
-  }
-
-  def "java getLogger rewritten to safe logger"() {
-    setup:
-    Field logField = GlobalTracer.getDeclaredField("LOGGER")
-    logField.setAccessible(true)
-    Object logger = logField.get(null)
-
-    expect:
-    !logger.getClass().getName().startsWith("java.util.logging")
-
-    cleanup:
-    logField?.setAccessible(false)
   }
 
   def "agent classes not visible"() {

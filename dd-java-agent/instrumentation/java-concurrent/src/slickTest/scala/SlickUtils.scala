@@ -1,6 +1,3 @@
-import datadog.trace.api.Trace
-import datadog.trace.context.TraceScope
-import io.opentracing.util.GlobalTracer
 import slick.jdbc.H2Profile.api._
 
 import scala.concurrent.duration.Duration
@@ -20,9 +17,8 @@ class SlickUtils {
   )
   Await.result(database.run(sqlu"""CREATE ALIAS IF NOT EXISTS SLEEP FOR "java.lang.Thread.sleep(long)""""), Duration.Inf)
 
-  @Trace
   def startQuery(query: String): Future[Vector[Int]] = {
-    GlobalTracer.get().scopeManager().active().asInstanceOf[TraceScope].setAsyncPropagation(true)
+    // TODO trask: wrap with trace
     database.run(sql"#$query".as[Int])
   }
 

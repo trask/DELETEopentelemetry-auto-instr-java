@@ -1,9 +1,8 @@
 package datadog.trace.agent.decorator;
 
-import datadog.trace.api.Config;
-import datadog.trace.api.DDTags;
-import io.opentracing.Span;
-import io.opentracing.tag.Tags;
+import datadog.trace.agent.tooling.AttributeNames;
+import datadog.trace.agent.tooling.Config;
+import io.opentelemetry.trace.Span;
 
 public abstract class DatabaseClientDecorator<CONNECTION> extends ClientDecorator {
 
@@ -14,10 +13,10 @@ public abstract class DatabaseClientDecorator<CONNECTION> extends ClientDecorato
   protected abstract String dbInstance(CONNECTION connection);
 
   @Override
-  public Span afterStart(final Span span) {
+  public void afterStart(final Span span) {
     assert span != null;
-    Tags.DB_TYPE.set(span, dbType());
-    return super.afterStart(span);
+    span.setAttribute(AttributeNames.DB_TYPE, dbType());
+    super.afterStart(span);
   }
 
   /**
@@ -30,12 +29,16 @@ public abstract class DatabaseClientDecorator<CONNECTION> extends ClientDecorato
   public Span onConnection(final Span span, final CONNECTION connection) {
     assert span != null;
     if (connection != null) {
-      Tags.DB_USER.set(span, dbUser(connection));
+      final String dbUser = dbUser(connection);
+      if (dbUser != null) {
+        span.setAttribute(AttributeNames.DB_USER, dbUser);
+      }
       final String instanceName = dbInstance(connection);
-      Tags.DB_INSTANCE.set(span, instanceName);
-
-      if (instanceName != null && Config.get().isDbClientSplitByInstance()) {
-        span.setTag(DDTags.SERVICE_NAME, instanceName);
+      if (instanceName != null) {
+        span.setAttribute(AttributeNames.DB_INSTANCE, instanceName);
+        if (Config.get().isDbClientSplitByInstance()) {
+          span.setAttribute(AttributeNames.SERVICE_NAME, instanceName);
+        }
       }
     }
     return span;
@@ -43,7 +46,9 @@ public abstract class DatabaseClientDecorator<CONNECTION> extends ClientDecorato
 
   public Span onStatement(final Span span, final String statement) {
     assert span != null;
-    Tags.DB_STATEMENT.set(span, statement);
+    if (statement != null) {
+      span.setAttribute(AttributeNames.DB_STATEMENT, statement);
+    }
     return span;
   }
 }

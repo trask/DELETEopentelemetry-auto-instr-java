@@ -7,7 +7,7 @@ import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 import com.google.auto.service.AutoService;
 import datadog.trace.agent.tooling.Instrumenter;
-import datadog.trace.bootstrap.instrumentation.java.concurrent.State;
+import io.opentelemetry.trace.Span;
 import java.util.HashMap;
 import java.util.Map;
 import net.bytebuddy.description.method.MethodDescription;
@@ -22,7 +22,7 @@ public final class NonStandardExecutorInstrumentation extends AbstractExecutorIn
 
   @Override
   public Map<String, String> contextStore() {
-    return singletonMap(Runnable.class.getName(), State.class.getName());
+    return singletonMap(Runnable.class.getName(), Span.class.getName());
   }
 
   @Override

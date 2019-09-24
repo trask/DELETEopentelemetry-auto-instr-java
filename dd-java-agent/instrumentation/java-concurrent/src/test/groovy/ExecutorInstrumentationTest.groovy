@@ -1,11 +1,9 @@
-import datadog.opentracing.DDSpan
-import datadog.opentracing.scopemanager.ContinuableScope
 import datadog.trace.agent.test.AgentTestRunner
 import datadog.trace.agent.test.utils.ConfigUtils
-import datadog.trace.api.Trace
+import datadog.trace.agent.tooling.GlobalTracer
 import datadog.trace.bootstrap.instrumentation.java.concurrent.CallableWrapper
 import datadog.trace.bootstrap.instrumentation.java.concurrent.RunnableWrapper
-import io.opentracing.util.GlobalTracer
+import io.opentelemetry.proto.trace.v1.Span
 import spock.lang.Shared
 
 import java.lang.reflect.InvocationTargetException
@@ -68,25 +66,30 @@ class ExecutorInstrumentationTest extends AgentTestRunner {
 
     new Runnable() {
       @Override
-      @Trace(operationName = "parent")
       void run() {
-        ((ContinuableScope) GlobalTracer.get().scopeManager().active()).setAsyncPropagation(true)
-        // this child will have a span
-        m(pool, new JavaAsyncChild())
-        // this child won't
-        m(pool, new JavaAsyncChild(false, false))
+        def span = GlobalTracer.get().spanBuilder("parent").startSpan()
+        def scope = GlobalTracer.get().withSpan(span)
+        try {
+          // this child will have a span
+          m(pool, new JavaAsyncChild())
+          // this child won't
+          m(pool, new JavaAsyncChild(false, false))
+        } finally {
+          scope.close()
+          span.end()
+        }
       }
     }.run()
 
-    TEST_WRITER.waitForTraces(1)
-    List<DDSpan> trace = TEST_WRITER.get(0)
+    TEST_EXPORTER.waitForTraces(1)
+    List<Span> trace = TEST_EXPORTER.traces.get(0)
 
     expect:
-    TEST_WRITER.size() == 1
+    TEST_EXPORTER.traces.size() == 1
     trace.size() == 2
-    trace.get(0).operationName == "parent"
-    trace.get(1).operationName == "asyncChild"
-    trace.get(1).parentId == trace.get(0).spanId
+    trace.get(0).name == "parent"
+    trace.get(1).name == "asyncChild"
+    trace.get(1).parentSpanId == trace.get(0).spanId
 
     cleanup:
     if (pool?.hasProperty("shutdown")) {
@@ -149,24 +152,29 @@ class ExecutorInstrumentationTest extends AgentTestRunner {
     JavaAsyncChild child = new JavaAsyncChild(true, true)
     new Runnable() {
       @Override
-      @Trace(operationName = "parent")
       void run() {
-        ((ContinuableScope) GlobalTracer.get().scopeManager().active()).setAsyncPropagation(true)
-        m(pool, w(child))
+        def span = GlobalTracer.get().spanBuilder("parent").startSpan()
+        def scope = GlobalTracer.get().withSpan(span)
+        try {
+          m(pool, w(child))
+        } finally {
+          scope.close()
+          span.end()
+        }
       }
     }.run()
     // We block in child to make sure spans close in predictable order
     child.unblock()
 
     // Expect two traces because async propagation gets effectively disabled
-    TEST_WRITER.waitForTraces(2)
+    TEST_EXPORTER.waitForTraces(2)
 
     expect:
-    TEST_WRITER.size() == 2
-    TEST_WRITER.get(0).size() == 1
-    TEST_WRITER.get(0).get(0).operationName == "parent"
-    TEST_WRITER.get(1).size() == 1
-    TEST_WRITER.get(1).get(0).operationName == "asyncChild"
+    TEST_EXPORTER.traces.size() == 2
+    TEST_EXPORTER.traces.get(0).size() == 1
+    TEST_EXPORTER.traces.get(0).get(0).name == "parent"
+    TEST_EXPORTER.traces.get(1).size() == 1
+    TEST_EXPORTER.traces.get(1).get(0).name == "asyncChild"
 
     cleanup:
     pool?.shutdown()
@@ -193,43 +201,48 @@ class ExecutorInstrumentationTest extends AgentTestRunner {
 
     new Runnable() {
       @Override
-      @Trace(operationName = "parent")
       void run() {
-        ((ContinuableScope) GlobalTracer.get().scopeManager().active()).setAsyncPropagation(true)
+        def span = GlobalTracer.get().spanBuilder("parent").startSpan()
+        def scope = GlobalTracer.get().withSpan(span)
         try {
-          for (int i = 0; i < 20; ++i) {
-            // Our current instrumentation instrumentation does not behave very well
-            // if we try to reuse Callable/Runnable. Namely we would be getting 'orphaned'
-            // child traces sometimes since state can contain only one continuation - and
-            // we do not really have a good way for attributing work to correct parent span
-            // if we reuse Callable/Runnable.
-            // Solution for now is to never reuse a Callable/Runnable.
-            final JavaAsyncChild child = new JavaAsyncChild(false, true)
-            children.add(child)
-            try {
-              Future f = m(pool, child)
-              jobFutures.add(f)
-            } catch (InvocationTargetException e) {
-              throw e.getCause()
+          try {
+            for (int i = 0; i < 20; ++i) {
+              // Our current instrumentation instrumentation does not behave very well
+              // if we try to reuse Callable/Runnable. Namely we would be getting 'orphaned'
+              // child traces sometimes since state can contain only one continuation - and
+              // we do not really have a good way for attributing work to correct parent span
+              // if we reuse Callable/Runnable.
+              // Solution for now is to never reuse a Callable/Runnable.
+              final JavaAsyncChild child = new JavaAsyncChild(false, true)
+              children.add(child)
+              try {
+                Future f = m(pool, child)
+                jobFutures.add(f)
+              } catch (InvocationTargetException e) {
+                throw e.getCause()
+              }
             }
+          } catch (RejectedExecutionException e) {
           }
-        } catch (RejectedExecutionException e) {
-        }
 
-        for (Future f : jobFutures) {
-          f.cancel(false)
-        }
-        for (JavaAsyncChild child : children) {
-          child.unblock()
+          for (Future f : jobFutures) {
+            f.cancel(false)
+          }
+          for (JavaAsyncChild child : children) {
+            child.unblock()
+          }
+        } finally {
+          scope.close()
+          span.end()
         }
       }
     }.run()
 
-    TEST_WRITER.waitForTraces(1)
+    TEST_EXPORTER.waitForTraces(1)
 
     expect:
     // FIXME: we should improve this test to make sure continuations are actually closed
-    TEST_WRITER.size() == 1
+    TEST_EXPORTER.traces.size() == 1
 
     where:
     name                | method           | poolImpl

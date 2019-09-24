@@ -19,9 +19,9 @@ dependencies {
   annotationProcessor deps.autoservice
   implementation deps.autoservice
 
-  compile project(':dd-trace-ot')
+  compile group: 'io.opentelemetry', name: 'opentelemetry-sdk', version: '0.1.0-SNAPSHOT'
 
-  testCompile deps.opentracing
+  testCompile deps.opentelemetry
   testCompile project(':dd-java-agent:testing')
   testCompile project(':utils:gc-utils')
 

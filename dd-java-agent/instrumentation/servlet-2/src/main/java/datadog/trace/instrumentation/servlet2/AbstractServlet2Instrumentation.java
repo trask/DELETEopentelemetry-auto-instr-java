@@ -21,12 +21,12 @@ public abstract class AbstractServlet2Instrumentation extends Instrumenter.Defau
   @Override
   public String[] helperClassNames() {
     return new String[] {
+      // TODO trask: see if decorators are needed since they are already in bootstrap class loader
       "datadog.trace.agent.decorator.BaseDecorator",
       "datadog.trace.agent.decorator.ServerDecorator",
       "datadog.trace.agent.decorator.HttpServerDecorator",
       packageName + ".Servlet2Decorator",
       packageName + ".HttpServletRequestExtractAdapter",
-      packageName + ".HttpServletRequestExtractAdapter$MultivaluedMapFlatIterator",
       packageName + ".StatusSavingHttpServletResponseWrapper",
     };
   }

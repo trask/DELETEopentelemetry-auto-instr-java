@@ -1,9 +1,8 @@
 package datadog.trace.agent.decorator
 
-import datadog.trace.api.Config
-import datadog.trace.api.DDTags
-import io.opentracing.Span
-import io.opentracing.tag.Tags
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.Config
+import io.opentelemetry.trace.Span
 
 class ServerDecoratorTest extends BaseDecoratorTest {
 
@@ -15,12 +14,11 @@ class ServerDecoratorTest extends BaseDecoratorTest {
     decorator.afterStart(span)
 
     then:
-    1 * span.setTag(Config.LANGUAGE_TAG_KEY, Config.LANGUAGE_TAG_VALUE)
-    1 * span.setTag(Tags.COMPONENT.key, "test-component")
-    1 * span.setTag(Tags.SPAN_KIND.key, "server")
-    1 * span.setTag(DDTags.SPAN_TYPE, decorator.spanType())
+    1 * span.setAttribute(Config.LANGUAGE_TAG_KEY, Config.LANGUAGE_TAG_VALUE)
+    1 * span.setAttribute(AttributeNames.COMPONENT, "test-component")
+    1 * span.setAttribute(AttributeNames.SPAN_TYPE, decorator.spanType())
     if (decorator.traceAnalyticsEnabled) {
-      1 * span.setTag(DDTags.ANALYTICS_SAMPLE_RATE, 1.0)
+      1 * span.setAttribute(AttributeNames.ANALYTICS_SAMPLE_RATE, 1.0)
     }
     0 * _
   }

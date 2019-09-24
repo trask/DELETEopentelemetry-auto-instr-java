@@ -3,14 +3,12 @@ package datadog.trace.instrumentation.servlet3;
 import static datadog.trace.agent.decorator.HttpServerDecorator.DD_SPAN_ATTRIBUTE;
 import static datadog.trace.instrumentation.servlet3.Servlet3Decorator.DECORATE;
 
-import datadog.trace.api.DDTags;
-import datadog.trace.context.TraceScope;
-import io.opentracing.Scope;
-import io.opentracing.Span;
-import io.opentracing.SpanContext;
-import io.opentracing.propagation.Format;
-import io.opentracing.tag.Tags;
-import io.opentracing.util.GlobalTracer;
+import datadog.trace.agent.tooling.AttributeNames;
+import datadog.trace.agent.tooling.GlobalTracer;
+import datadog.trace.agent.tooling.SpanInScope;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.trace.Span;
+import io.opentelemetry.trace.SpanContext;
 import java.security.Principal;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.servlet.ServletRequest;
@@ -33,43 +31,35 @@ public class Servlet3Advice {
     final HttpServletRequest httpServletRequest = (HttpServletRequest) req;
     final SpanContext extractedContext =
         GlobalTracer.get()
-            .extract(
-                Format.Builtin.HTTP_HEADERS,
-                new HttpServletRequestExtractAdapter(httpServletRequest));
+            .getHttpTextFormat()
+            .extract(httpServletRequest, HttpServletRequestExtractAdapter.INSTANCE);
 
-    final Scope scope =
-        GlobalTracer.get()
-            .buildSpan("servlet.request")
-            .ignoreActiveSpan()
-            .asChildOf(extractedContext)
-            .withTag("span.origin.type", servlet.getClass().getName())
-            .startActive(false);
+    final Span span =
+        GlobalTracer.get().spanBuilder("servlet.request").setParent(extractedContext).startSpan();
+    span.setAttribute("span.origin.type", servlet.getClass().getName());
 
-    final Span span = scope.span();
     DECORATE.afterStart(span);
     DECORATE.onConnection(span, httpServletRequest);
     DECORATE.onRequest(span, httpServletRequest);
 
-    if (scope instanceof TraceScope) {
-      ((TraceScope) scope).setAsyncPropagation(true);
-    }
+    // TODO revisit async propagation / continuation
 
     req.setAttribute(DD_SPAN_ATTRIBUTE, span);
-    return scope;
+    return SpanInScope.create(span, GlobalTracer.get().withSpan(span));
   }
 
   @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
   public static void stopSpan(
       @Advice.Argument(0) final ServletRequest request,
       @Advice.Argument(1) final ServletResponse response,
-      @Advice.Enter final Scope scope,
+      @Advice.Enter final SpanInScope scope,
       @Advice.Thrown final Throwable throwable) {
     // Set user.principal regardless of who created this span.
     final Object spanAttr = request.getAttribute(DD_SPAN_ATTRIBUTE);
     if (spanAttr instanceof Span && request instanceof HttpServletRequest) {
       final Principal principal = ((HttpServletRequest) request).getUserPrincipal();
       if (principal != null) {
-        ((Span) spanAttr).setTag(DDTags.USER_NAME, principal.getName());
+        ((Span) spanAttr).setAttribute(AttributeNames.USER_NAME, principal.getName());
       }
     }
 
@@ -83,12 +73,12 @@ public class Servlet3Advice {
           DECORATE.onResponse(span, resp);
           if (resp.getStatus() == HttpServletResponse.SC_OK) {
             // exception is thrown in filter chain, but status code is incorrect
-            Tags.HTTP_STATUS.set(span, 500);
+            span.setAttribute(AttributeNames.HTTP_STATUS, 500);
           }
           DECORATE.onError(span, throwable);
           DECORATE.beforeFinish(span);
           req.removeAttribute(DD_SPAN_ATTRIBUTE);
-          span.finish(); // Finish the span manually since finishSpanOnClose was false
+          span.end(); // Finish the span manually since finishSpanOnClose was false
         } else {
           final AtomicBoolean activated = new AtomicBoolean(false);
           if (req.isAsyncStarted()) {
@@ -104,7 +94,7 @@ public class Servlet3Advice {
             DECORATE.onResponse(span, resp);
             DECORATE.beforeFinish(span);
             req.removeAttribute(DD_SPAN_ATTRIBUTE);
-            span.finish(); // Finish the span manually since finishSpanOnClose was false
+            span.end(); // Finish the span manually since finishSpanOnClose was false
           }
         }
         scope.close();

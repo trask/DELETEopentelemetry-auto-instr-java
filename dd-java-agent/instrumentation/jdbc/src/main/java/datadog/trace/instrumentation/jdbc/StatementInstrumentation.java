@@ -12,12 +12,12 @@ import static net.bytebuddy.matcher.ElementMatchers.not;
 import static net.bytebuddy.matcher.ElementMatchers.takesArgument;
 
 import com.google.auto.service.AutoService;
+import datadog.trace.agent.tooling.GlobalTracer;
 import datadog.trace.agent.tooling.Instrumenter;
+import datadog.trace.agent.tooling.SpanInScope;
 import datadog.trace.bootstrap.CallDepthThreadLocalMap;
-import io.opentracing.Scope;
-import io.opentracing.Span;
-import io.opentracing.noop.NoopScopeManager;
-import io.opentracing.util.GlobalTracer;
+import io.opentelemetry.trace.Span;
+import io.opentelemetry.trace.Tracer;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -71,7 +71,7 @@ public final class StatementInstrumentation extends Instrumenter.Default {
   public static class StatementAdvice {
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
-    public static Scope startSpan(
+    public static SpanInScope startSpan(
         @Advice.Argument(0) final String sql, @Advice.This final Statement statement) {
       final int callDepth = CallDepthThreadLocalMap.incrementCallDepth(Statement.class);
       if (callDepth > 0) {
@@ -80,25 +80,28 @@ public final class StatementInstrumentation extends Instrumenter.Default {
 
       final Connection connection = connectionFromStatement(statement);
       if (connection == null) {
-        return NoopScopeManager.NoopScope.INSTANCE;
+        return null;
       }
 
-      final Scope scope = GlobalTracer.get().buildSpan("database.query").startActive(true);
-      final Span span = scope.span();
+      Tracer tracer = GlobalTracer.get();
+      final Span span =
+          tracer.spanBuilder("database.query").setSpanKind(Span.Kind.CLIENT).startSpan();
       DECORATE.afterStart(span);
       DECORATE.onConnection(span, connection);
       DECORATE.onStatement(span, sql);
-      span.setTag("span.origin.type", statement.getClass().getName());
-      return scope;
+      span.setAttribute("span.origin.type", statement.getClass().getName());
+      return SpanInScope.create(span, tracer.withSpan(span));
     }
 
     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
-    public static void stopSpan(
-        @Advice.Enter final Scope scope, @Advice.Thrown final Throwable throwable) {
+    public static void endSpan(
+        @Advice.Enter final SpanInScope scope, @Advice.Thrown final Throwable throwable) {
       if (scope != null) {
-        DECORATE.onError(scope.span(), throwable);
-        DECORATE.beforeFinish(scope.span());
+        Span span = scope.span();
+        DECORATE.onError(span, throwable);
+        DECORATE.beforeFinish(span);
         scope.close();
+        span.end();
         CallDepthThreadLocalMap.reset(Statement.class);
       }
     }

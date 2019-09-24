@@ -3,32 +3,25 @@ package datadog.trace.agent.test;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import com.google.common.collect.Sets;
-import datadog.opentracing.DDSpan;
-import datadog.opentracing.DDTracer;
-import datadog.opentracing.PendingTrace;
-import datadog.trace.agent.test.asserts.ListWriterAssert;
+import datadog.trace.agent.test.asserts.InMemoryExporterAssert;
 import datadog.trace.agent.test.utils.ConfigUtils;
-import datadog.trace.agent.test.utils.GlobalTracerUtils;
 import datadog.trace.agent.tooling.AgentInstaller;
+import datadog.trace.agent.tooling.GlobalTracer;
 import datadog.trace.agent.tooling.Instrumenter;
-import datadog.trace.api.GlobalTracer;
-import datadog.trace.common.writer.ListWriter;
-import datadog.trace.common.writer.Writer;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 import groovy.transform.stc.ClosureParams;
 import groovy.transform.stc.SimpleType;
-import io.opentracing.Span;
-import io.opentracing.Tracer;
+import io.opentelemetry.sdk.trace.TracerSdk;
+import io.opentelemetry.sdk.trace.export.SimpleSampledSpansProcessor;
+import io.opentelemetry.trace.Tracer;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -54,8 +47,8 @@ import spock.lang.Specification;
  * <ul>
  *   <li>All {@link Instrumenter}s on the test classpath will be applied. Matching preloaded classes
  *       will be retransformed.
- *   <li>{@link AgentTestRunner#TEST_WRITER} will be registerd with the global tracer and available
- *       in an initialized state.
+ *   <li>{@link AgentTestRunner#getTestTracer()} will be registered with the global tracer and
+ *       available in an initialized state.
  * </ul>
  */
 @RunWith(SpockRunner.class)
@@ -68,10 +61,10 @@ public abstract class AgentTestRunner extends Specification {
    *
    * <p>Before the start of each test the reported traces will be reset.
    */
-  public static final ListWriter TEST_WRITER;
+  public static final InMemoryExporter TEST_EXPORTER;
 
-  // having a reference to io.opentracing.Tracer in test field
-  // loads opentracing before bootstrap classpath is setup
+  // having a reference to io.opentelemetry.trace.Tracer in test field
+  // loads opentelemetry before bootstrap classpath is setup
   // so we declare tracer as an object and cast when needed.
   protected static final Object TEST_TRACER;
 
@@ -90,25 +83,15 @@ public abstract class AgentTestRunner extends Specification {
 
     ConfigUtils.makeConfigInstanceModifiable();
 
-    TEST_WRITER =
-        new ListWriter() {
-          @Override
-          public boolean add(final List<DDSpan> trace) {
-            final boolean result = super.add(trace);
-            return result;
-          }
-        };
-    TEST_TRACER = new DDTracer(TEST_WRITER);
-    GlobalTracerUtils.registerOrReplaceGlobalTracer((Tracer) TEST_TRACER);
-    GlobalTracer.registerIfAbsent((datadog.trace.api.Tracer) TEST_TRACER);
+    TEST_EXPORTER = new InMemoryExporter();
+    TracerSdk tracer = new TracerSdk();
+    tracer.addSpanProcessor(SimpleSampledSpansProcessor.newBuilder(TEST_EXPORTER).build());
+    GlobalTracer.set(tracer);
+    TEST_TRACER = tracer;
   }
 
   protected static Tracer getTestTracer() {
     return (Tracer) TEST_TRACER;
-  }
-
-  protected static Writer getTestWriter() {
-    return TEST_WRITER;
   }
 
   /**
@@ -172,10 +155,10 @@ public abstract class AgentTestRunner extends Specification {
 
   @Before
   public void beforeTest() {
-    assert getTestTracer().activeSpan() == null
-        : "Span is active before test has started: " + getTestTracer().activeSpan();
+    assert !getTestTracer().getCurrentSpan().getContext().isValid()
+        : "Span is active before test has started: " + getTestTracer().getCurrentSpan();
     log.debug("Starting test: '{}'", getSpecificationContext().getCurrentIteration().getName());
-    TEST_WRITER.start();
+    TEST_EXPORTER.getTraces().clear();
   }
 
   /** See comment for {@code #setupBeforeTests} above. */
@@ -199,27 +182,10 @@ public abstract class AgentTestRunner extends Specification {
       final int size,
       @ClosureParams(
               value = SimpleType.class,
-              options = "datadog.trace.agent.test.asserts.ListWriterAssert")
-          @DelegatesTo(value = ListWriterAssert.class, strategy = Closure.DELEGATE_FIRST)
+              options = "datadog.trace.agent.test.asserts.InMemoryExporterAssert")
+          @DelegatesTo(value = InMemoryExporterAssert.class, strategy = Closure.DELEGATE_FIRST)
           final Closure spec) {
-    ListWriterAssert.assertTraces(TEST_WRITER, size, spec);
-  }
-
-  @SneakyThrows
-  public static void blockUntilChildSpansFinished(final int numberOfSpans) {
-    final Span span = io.opentracing.util.GlobalTracer.get().activeSpan();
-    final long deadline = System.currentTimeMillis() + TIMEOUT_MILLIS;
-    if (span instanceof DDSpan) {
-      final PendingTrace pendingTrace = ((DDSpan) span).context().getTrace();
-
-      while (pendingTrace.size() < numberOfSpans) {
-        if (System.currentTimeMillis() > deadline) {
-          throw new TimeoutException(
-              "Timed out waiting for child spans.  Received: " + pendingTrace.size());
-        }
-        Thread.sleep(10);
-      }
-    }
+    InMemoryExporterAssert.assertTraces(TEST_EXPORTER, size, spec);
   }
 
   public static class TestRunnerListener implements AgentBuilder.Listener {

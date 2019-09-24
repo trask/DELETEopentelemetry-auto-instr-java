@@ -8,11 +8,11 @@ import static net.bytebuddy.matcher.ElementMatchers.not;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 import com.google.auto.service.AutoService;
+import datadog.trace.agent.tooling.GlobalTracer;
 import datadog.trace.agent.tooling.Instrumenter;
-import datadog.trace.bootstrap.ContextStore;
 import datadog.trace.bootstrap.InstrumentationContext;
-import datadog.trace.bootstrap.instrumentation.java.concurrent.State;
-import datadog.trace.context.TraceScope;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.trace.Span;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -48,8 +48,8 @@ public final class RunnableCallableInstrumentation extends Instrumenter.Default 
   @Override
   public Map<String, String> contextStore() {
     final Map<String, String> map = new HashMap<>();
-    map.put(Runnable.class.getName(), State.class.getName());
-    map.put(Callable.class.getName(), State.class.getName());
+    map.put(Runnable.class.getName(), Span.class.getName());
+    map.put(Callable.class.getName(), Span.class.getName());
     return Collections.unmodifiableMap(map);
   }
 
@@ -66,30 +66,32 @@ public final class RunnableCallableInstrumentation extends Instrumenter.Default 
   public static class RunnableAdvice {
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
-    public static TraceScope enter(@Advice.This final Runnable thiz) {
-      final ContextStore<Runnable, State> contextStore =
-          InstrumentationContext.get(Runnable.class, State.class);
-      return AdviceUtils.startTaskScope(contextStore, thiz);
+    public static Scope enter(@Advice.This final Runnable thiz) {
+      Span span = InstrumentationContext.get(Runnable.class, Span.class).get(thiz);
+      return span == null ? null : GlobalTracer.get().withSpan(span);
     }
 
     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
-    public static void exit(@Advice.Enter final TraceScope scope) {
-      AdviceUtils.endTaskScope(scope);
+    public static void exit(@Advice.Enter final Scope scope) {
+      if (scope != null) {
+        scope.close();
+      }
     }
   }
 
   public static class CallableAdvice {
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
-    public static TraceScope enter(@Advice.This final Callable thiz) {
-      final ContextStore<Callable, State> contextStore =
-          InstrumentationContext.get(Callable.class, State.class);
-      return AdviceUtils.startTaskScope(contextStore, thiz);
+    public static Scope enter(@Advice.This final Callable thiz) {
+      Span span = InstrumentationContext.get(Callable.class, Span.class).get(thiz);
+      return span == null ? null : GlobalTracer.get().withSpan(span);
     }
 
     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
-    public static void exit(@Advice.Enter final TraceScope scope) {
-      AdviceUtils.endTaskScope(scope);
+    public static void exit(@Advice.Enter final Scope scope) {
+      if (scope != null) {
+        scope.close();
+      }
     }
   }
 }

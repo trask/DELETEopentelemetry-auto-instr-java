@@ -1,6 +1,6 @@
 package datadog.trace.agent.decorator
 
-import datadog.trace.api.DDTags
+import datadog.trace.agent.tooling.AttributeNames
 
 class OrmClientDecoratorTest extends DatabaseClientDecoratorTest {
 
@@ -13,7 +13,7 @@ class OrmClientDecoratorTest extends DatabaseClientDecoratorTest {
 
     then:
     if (isSet) {
-      1 * span.setTag(DDTags.RESOURCE_NAME, entityName)
+      1 * span.setAttribute(AttributeNames.RESOURCE_NAME, entityName)
     }
     0 * _
 

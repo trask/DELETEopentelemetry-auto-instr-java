@@ -1,6 +1,7 @@
 import datadog.trace.agent.test.AgentTestRunner
-import datadog.trace.api.DDSpanTypes
-import io.opentracing.tag.Tags
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.DDSpanTypes
+import io.opentelemetry.proto.trace.v1.Span
 
 class SlickTest extends AgentTestRunner {
 
@@ -18,29 +19,29 @@ class SlickTest extends AgentTestRunner {
     assertTraces(1) {
       trace(0, 2) {
         span(0) {
-          serviceName "unnamed-java-app"
-          operationName "trace.annotation"
-          resourceName "SlickUtils.startQuery"
+          spanName "trace.annotation"
           parent()
-          errored false
           tags {
-            "$Tags.COMPONENT.key" "trace"
+            "service.name" "unnamed-java-app"
+            "resource.name" "SlickUtils.startQuery"
+            "$AttributeNames.COMPONENT" "trace"
             defaultTags()
           }
         }
         span(1) {
-          operationName "${SlickUtils.Driver()}.query"
-          serviceName SlickUtils.Driver()
-          resourceName SlickUtils.TestQuery()
-          spanType DDSpanTypes.SQL
+          spanKind Span.SpanKind.CLIENT
+          spanName "${SlickUtils.Driver()}.query"
           childOf span(0)
           errored false
           tags {
-            "$Tags.COMPONENT.key" "java-jdbc-prepared_statement"
-            "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_CLIENT
+            "$AttributeNames.SERVICE_NAME" SlickUtils.Driver()
+            "$AttributeNames.RESOURCE_NAME" SlickUtils.TestQuery()
+            "$AttributeNames.SPAN_TYPE" DDSpanTypes.SQL
 
-            "$Tags.DB_TYPE.key" SlickUtils.Driver()
-            "$Tags.DB_USER.key" SlickUtils.Username()
+            "$AttributeNames.COMPONENT" "java-jdbc-prepared_statement"
+
+            "$AttributeNames.DB_TYPE" SlickUtils.Driver()
+            "$AttributeNames.DB_USER" SlickUtils.Username()
 
             "db.instance" SlickUtils.Db()
             "span.origin.type" "org.h2.jdbc.JdbcPreparedStatement"

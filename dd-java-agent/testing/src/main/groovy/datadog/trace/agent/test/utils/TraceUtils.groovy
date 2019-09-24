@@ -1,11 +1,10 @@
 package datadog.trace.agent.test.utils
 
-import datadog.opentracing.DDSpan
 import datadog.trace.agent.decorator.BaseDecorator
 import datadog.trace.agent.test.asserts.TraceAssert
-import datadog.trace.context.TraceScope
-import io.opentracing.Scope
-import io.opentracing.util.GlobalTracer
+import datadog.trace.agent.tooling.GlobalTracer
+import io.opentelemetry.context.Scope
+import io.opentelemetry.proto.trace.v1.Span
 import lombok.SneakyThrows
 
 import java.util.concurrent.Callable
@@ -28,18 +27,21 @@ class TraceUtils {
 
   @SneakyThrows
   static <T> T runUnderTrace(final String rootOperationName, final Callable<T> r) {
-    final Scope scope = GlobalTracer.get().buildSpan(rootOperationName).startActive(true)
-    DECORATOR.afterStart(scope)
-    ((TraceScope) scope).setAsyncPropagation(true)
+    final io.opentelemetry.trace.Span span = GlobalTracer.get().spanBuilder(rootOperationName).startSpan()
+    final Scope scope = GlobalTracer.get().withSpan(span)
+    DECORATOR.afterStart(span)
+    // TODO trask
+    // ((TraceScope) scope).setAsyncPropagation(true)
 
     try {
       return r.call()
     } catch (final Exception e) {
-      DECORATOR.onError(scope, e)
+      DECORATOR.onError(span, e)
       throw e
     } finally {
-      DECORATOR.beforeFinish(scope)
+      DECORATOR.beforeFinish(span)
       scope.close()
+      span.end()
     }
   }
 
@@ -47,18 +49,16 @@ class TraceUtils {
     basicSpan(trace, index, spanName, spanName, parentSpan, exception)
   }
 
-  static basicSpan(TraceAssert trace, int index, String operation, String resource, Object parentSpan = null, Throwable exception = null) {
+  static basicSpan(TraceAssert trace, int index, String operation, String resource, Span parentSpan = null, Throwable exception = null) {
     trace.span(index) {
       if (parentSpan == null) {
         parent()
       } else {
-        childOf((DDSpan) parentSpan)
+        childOf(parentSpan)
       }
-      serviceName "unnamed-java-app"
-      operationName operation
-      resourceName resource
-      errored exception != null
+      spanName operation
       tags {
+        "resource.name" resource
         defaultTags()
         if (exception) {
           errorTags(exception.class, exception.message)

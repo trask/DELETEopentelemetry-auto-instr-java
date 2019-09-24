@@ -1,8 +1,10 @@
 import datadog.trace.agent.test.asserts.TraceAssert
 import datadog.trace.agent.test.base.HttpServerTest
-import datadog.trace.api.DDSpanTypes
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.DDSpanTypes
 import datadog.trace.instrumentation.servlet3.Servlet3Decorator
-import io.opentracing.tag.Tags
+import io.opentelemetry.trace.Span
+
 import javax.servlet.Servlet
 import okhttp3.Request
 import org.apache.catalina.core.ApplicationFilterChain
@@ -22,11 +24,6 @@ abstract class AbstractServlet3Test<SERVER, CONTEXT> extends HttpServerTest<SERV
   @Override
   Servlet3Decorator decorator() {
     return Servlet3Decorator.DECORATE
-  }
-
-  @Override
-  String expectedServiceName() {
-    context
   }
 
   @Override
@@ -69,11 +66,8 @@ abstract class AbstractServlet3Test<SERVER, CONTEXT> extends HttpServerTest<SERV
   @Override
   void serverSpan(TraceAssert trace, int index, String traceID = null, String parentID = null, String method = "GET", ServerEndpoint endpoint = SUCCESS) {
     trace.span(index) {
-      serviceName expectedServiceName()
-      operationName expectedOperationName()
-      resourceName endpoint.status == 404 ? "404" : "$method ${endpoint.resolve(address).path}"
-      spanType DDSpanTypes.HTTP_SERVER
-      errored endpoint.errored
+      spanKind Span.Kind.SERVER
+      spanName expectedOperationName()
       if (parentID != null) {
         traceId traceID
         parentId parentID
@@ -81,24 +75,25 @@ abstract class AbstractServlet3Test<SERVER, CONTEXT> extends HttpServerTest<SERV
         parent()
       }
       tags {
+        "$AttributeNames.SPAN_TYPE" DDSpanTypes.HTTP_SERVER
+
         "servlet.context" "/$context"
         "span.origin.type" { it == servlet.name || it == ApplicationFilterChain.name }
 
         defaultTags(true)
-        "$Tags.COMPONENT.key" serverDecorator.component()
+        "$AttributeNames.COMPONENT" serverDecorator.component()
         if (endpoint.errored) {
-          "$Tags.ERROR.key" endpoint.errored
+          "$AttributeNames.ERROR" true
           "error.msg" { it == null || it == EXCEPTION.body }
           "error.type" { it == null || it == Exception.name }
           "error.stack" { it == null || it instanceof String }
         }
-        "$Tags.HTTP_STATUS.key" endpoint.status
-        "$Tags.HTTP_URL.key" "${endpoint.resolve(address)}"
-        "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
-        "$Tags.PEER_PORT.key" Integer
-        "$Tags.PEER_HOST_IPV4.key" { it == null || it == "127.0.0.1" } // Optional
-        "$Tags.HTTP_METHOD.key" method
-        "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
+        "$AttributeNames.HTTP_STATUS" endpoint.status
+        "$AttributeNames.HTTP_URL" "${endpoint.resolve(address)}"
+        "$AttributeNames.PEER_HOSTNAME" { it == "localhost" || it == "127.0.0.1" }
+        "$AttributeNames.PEER_PORT" Integer
+        "$AttributeNames.PEER_HOST_IPV4" { it == null || it == "127.0.0.1" } // Optional
+        "$AttributeNames.HTTP_METHOD" method
       }
     }
   }

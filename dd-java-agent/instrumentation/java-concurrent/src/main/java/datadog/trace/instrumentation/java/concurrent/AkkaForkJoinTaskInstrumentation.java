@@ -13,8 +13,8 @@ import com.google.auto.service.AutoService;
 import datadog.trace.agent.tooling.Instrumenter;
 import datadog.trace.bootstrap.ContextStore;
 import datadog.trace.bootstrap.InstrumentationContext;
-import datadog.trace.bootstrap.instrumentation.java.concurrent.State;
-import datadog.trace.context.TraceScope;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.trace.Span;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,9 +56,9 @@ public final class AkkaForkJoinTaskInstrumentation extends Instrumenter.Default 
   @Override
   public Map<String, String> contextStore() {
     final Map<String, String> map = new HashMap<>();
-    map.put(Runnable.class.getName(), State.class.getName());
-    map.put(Callable.class.getName(), State.class.getName());
-    map.put(TASK_CLASS_NAME, State.class.getName());
+    map.put(Runnable.class.getName(), Span.class.getName());
+    map.put(Callable.class.getName(), Span.class.getName());
+    map.put(TASK_CLASS_NAME, Span.class.getName());
     return Collections.unmodifiableMap(map);
   }
 
@@ -80,15 +80,14 @@ public final class AkkaForkJoinTaskInstrumentation extends Instrumenter.Default 
      * need to use that state.
      */
     @Advice.OnMethodEnter(suppress = Throwable.class)
-    public static TraceScope enter(@Advice.This final ForkJoinTask thiz) {
-      final ContextStore<ForkJoinTask, State> contextStore =
-          InstrumentationContext.get(ForkJoinTask.class, State.class);
-      TraceScope scope = AdviceUtils.startTaskScope(contextStore, thiz);
+    public static Scope enter(@Advice.This final ForkJoinTask thiz) {
+      final ContextStore<ForkJoinTask, Span> contextStore =
+          InstrumentationContext.get(ForkJoinTask.class, Span.class);
+      Scope scope = AdviceUtils.startTaskScope(contextStore, thiz);
       if (thiz instanceof Runnable) {
-        final ContextStore<Runnable, State> runnableContextStore =
-            InstrumentationContext.get(Runnable.class, State.class);
-        final TraceScope newScope =
-            AdviceUtils.startTaskScope(runnableContextStore, (Runnable) thiz);
+        final ContextStore<Runnable, Span> runnableContextStore =
+            InstrumentationContext.get(Runnable.class, Span.class);
+        final Scope newScope = AdviceUtils.startTaskScope(runnableContextStore, (Runnable) thiz);
         if (null != newScope) {
           if (null != scope) {
             newScope.close();
@@ -98,10 +97,9 @@ public final class AkkaForkJoinTaskInstrumentation extends Instrumenter.Default 
         }
       }
       if (thiz instanceof Callable) {
-        final ContextStore<Callable, State> callableContextStore =
-            InstrumentationContext.get(Callable.class, State.class);
-        final TraceScope newScope =
-            AdviceUtils.startTaskScope(callableContextStore, (Callable) thiz);
+        final ContextStore<Callable, Span> callableContextStore =
+            InstrumentationContext.get(Callable.class, Span.class);
+        final Scope newScope = AdviceUtils.startTaskScope(callableContextStore, (Callable) thiz);
         if (null != newScope) {
           if (null != scope) {
             newScope.close();
@@ -114,7 +112,7 @@ public final class AkkaForkJoinTaskInstrumentation extends Instrumenter.Default 
     }
 
     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
-    public static void exit(@Advice.Enter final TraceScope scope) {
+    public static void exit(@Advice.Enter final Scope scope) {
       AdviceUtils.endTaskScope(scope);
     }
   }

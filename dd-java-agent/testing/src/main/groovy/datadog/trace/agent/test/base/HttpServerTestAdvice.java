@@ -1,11 +1,10 @@
 package datadog.trace.agent.test.base;
 
-import datadog.trace.api.DDTags;
-import datadog.trace.context.TraceScope;
-import io.opentracing.Scope;
-import io.opentracing.Tracer;
-import io.opentracing.noop.NoopScopeManager;
-import io.opentracing.util.GlobalTracer;
+import datadog.trace.agent.tooling.AttributeNames;
+import datadog.trace.agent.tooling.GlobalTracer;
+import io.opentelemetry.trace.DefaultSpan;
+import io.opentelemetry.trace.Span;
+import io.opentelemetry.trace.Tracer;
 import net.bytebuddy.asm.Advice;
 
 public abstract class HttpServerTestAdvice {
@@ -16,28 +15,30 @@ public abstract class HttpServerTestAdvice {
    */
   public static class ServerEntryAdvice {
     @Advice.OnMethodEnter
-    public static Scope methodEnter() {
+    public static Span methodEnter() {
       if (!HttpServerTest.ENABLE_TEST_ADVICE.get()) {
         // Skip if not running the HttpServerTest.
-        return NoopScopeManager.NoopScope.INSTANCE;
+        return null;
       }
       final Tracer tracer = GlobalTracer.get();
-      if (tracer.activeSpan() != null) {
-        return NoopScopeManager.NoopScope.INSTANCE;
+      // TODO trask: is there a better way to perfom this check?
+      if (tracer.getCurrentSpan() != DefaultSpan.getInvalid()) {
+        return DefaultSpan.getInvalid();
       } else {
-        final Scope scope =
-            tracer
-                .buildSpan("TEST_SPAN")
-                .withTag(DDTags.RESOURCE_NAME, "ServerEntry")
-                .startActive(true);
-        ((TraceScope) scope).setAsyncPropagation(true);
-        return scope;
+        final Span span = tracer.spanBuilder("TEST_SPAN").startSpan();
+        // TODO trask: should resource name be mapped to proto span.resource.labelsMap.name ?
+        span.setAttribute(AttributeNames.RESOURCE_NAME, "ServerEntry");
+        // TODO trask
+        // ((TraceScope) span).setAsyncPropagation(true);
+        return span;
       }
     }
 
     @Advice.OnMethodExit(onThrowable = Throwable.class)
-    public static void methodExit(@Advice.Enter final Scope scope) {
-      scope.close();
+    public static void methodExit(@Advice.Enter final Span span) {
+      if (span != null) {
+        span.end();
+      }
     }
   }
 }

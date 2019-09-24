@@ -1,8 +1,7 @@
 package datadog.trace.agent.decorator
 
-import datadog.trace.api.DDTags
-import io.opentracing.Span
-import io.opentracing.tag.Tags
+import datadog.trace.agent.tooling.AttributeNames
+import io.opentelemetry.trace.Span
 
 class ClientDecoratorTest extends BaseDecoratorTest {
 
@@ -17,13 +16,12 @@ class ClientDecoratorTest extends BaseDecoratorTest {
 
     then:
     if (serviceName != null) {
-      1 * span.setTag(DDTags.SERVICE_NAME, serviceName)
+      1 * span.setAttribute(AttributeNames.SERVICE_NAME, serviceName)
     }
-    1 * span.setTag(Tags.COMPONENT.key, "test-component")
-    1 * span.setTag(Tags.SPAN_KIND.key, "client")
-    1 * span.setTag(DDTags.SPAN_TYPE, decorator.spanType())
-    1 * span.setTag(DDTags.ANALYTICS_SAMPLE_RATE, 1.0)
-    _ * span.setTag(_, _) // Want to allow other calls from child implementations.
+    1 * span.setAttribute(AttributeNames.COMPONENT, "test-component")
+    1 * span.setAttribute(AttributeNames.SPAN_TYPE, decorator.spanType())
+    1 * span.setAttribute(AttributeNames.ANALYTICS_SAMPLE_RATE, 1.0)
+    _ * span.setAttribute(_, _) // Want to allow other calls from child implementations.
     0 * _
 
     where:

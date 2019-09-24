@@ -1,9 +1,8 @@
 package datadog.trace.agent.decorator
 
-import datadog.trace.api.Config
-import datadog.trace.api.DDTags
-import io.opentracing.Span
-import io.opentracing.tag.Tags
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.Config
+import io.opentelemetry.trace.Span
 import spock.lang.Shared
 
 import static datadog.trace.agent.test.utils.ConfigUtils.withConfigOverride
@@ -26,12 +25,12 @@ class HttpClientDecoratorTest extends ClientDecoratorTest {
 
     then:
     if (req) {
-      1 * span.setTag(Tags.HTTP_METHOD.key, req.method)
-      1 * span.setTag(Tags.HTTP_URL.key, "$req.url")
-      1 * span.setTag(Tags.PEER_HOSTNAME.key, req.host)
-      1 * span.setTag(Tags.PEER_PORT.key, req.port)
+      1 * span.setAttribute(AttributeNames.HTTP_METHOD, req.method)
+      1 * span.setAttribute(AttributeNames.HTTP_URL, "$req.url")
+      1 * span.setAttribute(AttributeNames.PEER_HOSTNAME, req.host)
+      1 * span.setAttribute(AttributeNames.PEER_PORT, req.port)
       if (renameService) {
-        1 * span.setTag(DDTags.SERVICE_NAME, req.host)
+        1 * span.setAttribute(AttributeNames.SERVICE_NAME, req.host)
       }
     }
     0 * _
@@ -55,15 +54,12 @@ class HttpClientDecoratorTest extends ClientDecoratorTest {
 
     then:
     if (expectedUrl) {
-      1 * span.setTag(Tags.HTTP_URL.key, expectedUrl)
+      1 * span.setAttribute(AttributeNames.HTTP_URL, expectedUrl)
     }
     if (expectedUrl && tagQueryString) {
-      1 * span.setTag(DDTags.HTTP_QUERY, expectedQuery)
-      1 * span.setTag(DDTags.HTTP_FRAGMENT, expectedFragment)
+      1 * span.setAttribute(AttributeNames.HTTP_QUERY, expectedQuery)
+      1 * span.setAttribute(AttributeNames.HTTP_FRAGMENT, expectedFragment)
     }
-    1 * span.setTag(Tags.HTTP_METHOD.key, null)
-    1 * span.setTag(Tags.PEER_HOSTNAME.key, null)
-    1 * span.setTag(Tags.PEER_PORT.key, null)
     0 * _
 
     where:
@@ -95,10 +91,10 @@ class HttpClientDecoratorTest extends ClientDecoratorTest {
 
     then:
     if (status) {
-      1 * span.setTag(Tags.HTTP_STATUS.key, status)
+      1 * span.setAttribute(AttributeNames.HTTP_STATUS, status)
     }
     if (error) {
-      1 * span.setTag(Tags.ERROR.key, true)
+      1 * span.setAttribute(AttributeNames.ERROR, true)
     }
     0 * _
 

@@ -1,13 +1,13 @@
 package datadog.trace.agent.decorator;
 
-import static io.opentracing.log.Fields.ERROR_OBJECT;
 import static java.util.Collections.singletonMap;
 
-import datadog.trace.api.Config;
-import datadog.trace.api.DDTags;
-import io.opentracing.Scope;
-import io.opentracing.Span;
-import io.opentracing.tag.Tags;
+import datadog.trace.agent.tooling.AttributeNames;
+import datadog.trace.agent.tooling.Config;
+import io.opentelemetry.trace.AttributeValue;
+import io.opentelemetry.trace.Span;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -42,51 +42,39 @@ public abstract class BaseDecorator {
     return false;
   }
 
-  public Scope afterStart(final Scope scope) {
-    assert scope != null;
-    afterStart(scope.span());
-    return scope;
-  }
-
-  public Span afterStart(final Span span) {
+  public void afterStart(final Span span) {
     assert span != null;
-    if (spanType() != null) {
-      span.setTag(DDTags.SPAN_TYPE, spanType());
+    String spanType = spanType();
+    if (spanType != null) {
+      span.setAttribute(AttributeNames.SPAN_TYPE, spanType);
     }
-    Tags.COMPONENT.set(span, component());
+    String component = component();
+    if (component != null) {
+      span.setAttribute(AttributeNames.COMPONENT, component);
+    }
     if (traceAnalyticsEnabled) {
-      span.setTag(DDTags.ANALYTICS_SAMPLE_RATE, traceAnalyticsSampleRate);
+      span.setAttribute(AttributeNames.ANALYTICS_SAMPLE_RATE, traceAnalyticsSampleRate);
     }
-    return span;
   }
 
-  public Scope beforeFinish(final Scope scope) {
-    assert scope != null;
-    beforeFinish(scope.span());
-    return scope;
-  }
-
-  public Span beforeFinish(final Span span) {
+  public void beforeFinish(final Span span) {
     assert span != null;
-    return span;
   }
 
-  public Scope onError(final Scope scope, final Throwable throwable) {
-    assert scope != null;
-    onError(scope.span(), throwable);
-    return scope;
-  }
-
-  public Span onError(final Span span, final Throwable throwable) {
+  public void onError(final Span span, final Throwable throwable) {
     assert span != null;
     if (throwable != null) {
-      Tags.ERROR.set(span, true);
-      span.log(
+      span.setAttribute(AttributeNames.ERROR, true);
+      Throwable cause = throwable instanceof ExecutionException ? throwable.getCause() : throwable;
+      StringWriter sw = new StringWriter();
+      try (PrintWriter pw = new PrintWriter(sw)) {
+        cause.printStackTrace(pw);
+      }
+      span.addEvent(
+          "error",
           singletonMap(
-              ERROR_OBJECT,
-              throwable instanceof ExecutionException ? throwable.getCause() : throwable));
+              AttributeNames.ERROR_OBJECT, AttributeValue.stringAttributeValue(sw.toString())));
     }
-    return span;
   }
 
   public Span onPeerConnection(final Span span, final InetSocketAddress remoteConnection) {
@@ -94,8 +82,8 @@ public abstract class BaseDecorator {
     if (remoteConnection != null) {
       onPeerConnection(span, remoteConnection.getAddress());
 
-      span.setTag(Tags.PEER_HOSTNAME.getKey(), remoteConnection.getHostName());
-      span.setTag(Tags.PEER_PORT.getKey(), remoteConnection.getPort());
+      span.setAttribute(AttributeNames.PEER_HOSTNAME, remoteConnection.getHostName());
+      span.setAttribute(AttributeNames.PEER_PORT, remoteConnection.getPort());
     }
     return span;
   }
@@ -103,11 +91,11 @@ public abstract class BaseDecorator {
   public Span onPeerConnection(final Span span, final InetAddress remoteAddress) {
     assert span != null;
     if (remoteAddress != null) {
-      span.setTag(Tags.PEER_HOSTNAME.getKey(), remoteAddress.getHostName());
+      span.setAttribute(AttributeNames.PEER_HOSTNAME, remoteAddress.getHostName());
       if (remoteAddress instanceof Inet4Address) {
-        Tags.PEER_HOST_IPV4.set(span, remoteAddress.getHostAddress());
+        span.setAttribute(AttributeNames.PEER_HOST_IPV4, remoteAddress.getHostAddress());
       } else if (remoteAddress instanceof Inet6Address) {
-        Tags.PEER_HOST_IPV6.set(span, remoteAddress.getHostAddress());
+        span.setAttribute(AttributeNames.PEER_HOST_IPV6, remoteAddress.getHostAddress());
       }
     }
     return span;

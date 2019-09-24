@@ -1,8 +1,6 @@
-import datadog.opentracing.DDSpan
-import datadog.opentracing.scopemanager.ContinuableScope
 import datadog.trace.agent.test.AgentTestRunner
-import datadog.trace.api.Trace
-import io.opentracing.util.GlobalTracer
+import datadog.trace.agent.tooling.GlobalTracer
+import io.opentelemetry.proto.trace.v1.Span
 
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CompletableFuture
@@ -23,49 +21,53 @@ class CompletableFutureTest extends AgentTestRunner {
     def differentPool = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.NANOSECONDS, new ArrayBlockingQueue<Runnable>(1))
     def supplier = new Supplier<String>() {
       @Override
-      @Trace(operationName = "supplier")
       String get() {
+        def span = GlobalTracer.get().spanBuilder("supplier").startSpan()
         sleep(1000)
+        span.end()
         return "a"
       }
     }
 
     def function = new Function<String, String>() {
       @Override
-      @Trace(operationName = "function")
       String apply(String s) {
+        GlobalTracer.get().spanBuilder("function").startSpan().end()
         return s + "c"
       }
     }
 
     def future = new Supplier<CompletableFuture<String>>() {
       @Override
-      @Trace(operationName = "parent")
       CompletableFuture<String> get() {
-        ((ContinuableScope) GlobalTracer.get().scopeManager().active()).setAsyncPropagation(true)
-        return CompletableFuture.supplyAsync(supplier, pool)
+        def span = GlobalTracer.get().spanBuilder("parent").startSpan()
+        def scope = GlobalTracer.get().withSpan(span)
+        def future = CompletableFuture.supplyAsync(supplier, pool)
           .thenCompose({ s -> CompletableFuture.supplyAsync(new AppendingSupplier(s), differentPool) })
           .thenApply(function)
+        scope.close()
+        span.end()
+        return future
       }
     }.get()
 
     def result = future.get()
 
-    TEST_WRITER.waitForTraces(1)
-    List<DDSpan> trace = TEST_WRITER.get(0)
+    TEST_EXPORTER.waitForTraces(1)
+    List<Span> trace = TEST_EXPORTER.traces.get(0)
 
     expect:
     result == "abc"
 
-    TEST_WRITER.size() == 1
+    TEST_EXPORTER.traces.size() == 1
     trace.size() == 4
-    trace.get(0).operationName == "parent"
-    trace.get(1).operationName == "function"
-    trace.get(1).parentId == trace.get(0).spanId
-    trace.get(2).operationName == "appendingSupplier"
-    trace.get(2).parentId == trace.get(0).spanId
-    trace.get(3).operationName == "supplier"
-    trace.get(3).parentId == trace.get(0).spanId
+    trace.get(0).name == "parent"
+    trace.get(1).name == "function"
+    trace.get(1).parentSpanId == trace.get(0).spanId
+    trace.get(2).name == "appendingSupplier"
+    trace.get(2).parentSpanId == trace.get(0).spanId
+    trace.get(3).name == "supplier"
+    trace.get(3).parentSpanId == trace.get(0).spanId
 
     cleanup:
     pool?.shutdown()
@@ -80,8 +82,8 @@ class CompletableFutureTest extends AgentTestRunner {
     }
 
     @Override
-    @Trace(operationName = "appendingSupplier")
     String get() {
+      GlobalTracer.get().spanBuilder("appendingSupplier").startSpan().end()
       return letter + "b"
     }
   }

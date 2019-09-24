@@ -5,13 +5,11 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArgument;
 
 import com.google.auto.service.AutoService;
+import datadog.trace.agent.tooling.GlobalTracer;
 import datadog.trace.agent.tooling.Instrumenter;
 import datadog.trace.bootstrap.ContextStore;
 import datadog.trace.bootstrap.InstrumentationContext;
-import datadog.trace.bootstrap.instrumentation.java.concurrent.State;
-import datadog.trace.context.TraceScope;
-import io.opentracing.Scope;
-import io.opentracing.util.GlobalTracer;
+import io.opentelemetry.trace.Span;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +31,7 @@ public final class ScalaExecutorInstrumentation extends AbstractExecutorInstrume
   @Override
   public Map<String, String> contextStore() {
     return Collections.singletonMap(
-        ScalaForkJoinTaskInstrumentation.TASK_CLASS_NAME, State.class.getName());
+        ScalaForkJoinTaskInstrumentation.TASK_CLASS_NAME, Span.class.getName());
   }
 
   @Override
@@ -57,24 +55,15 @@ public final class ScalaExecutorInstrumentation extends AbstractExecutorInstrume
   public static class SetScalaForkJoinStateAdvice {
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
-    public static State enterJobSubmit(
+    public static void enterJobSubmit(
         @Advice.This final Executor executor,
         @Advice.Argument(value = 0, readOnly = false) final ForkJoinTask task) {
-      final Scope scope = GlobalTracer.get().scopeManager().active();
-      if (ExecutorInstrumentationUtils.shouldAttachStateToTask(task, executor)) {
-        final ContextStore<ForkJoinTask, State> contextStore =
-            InstrumentationContext.get(ForkJoinTask.class, State.class);
-        return ExecutorInstrumentationUtils.setupState(contextStore, task, (TraceScope) scope);
+      final Span span = GlobalTracer.get().getCurrentSpan();
+      if (ExecutorInstrumentationUtils.shouldAttachSpanToTask(span, task, executor)) {
+        final ContextStore<ForkJoinTask, Span> contextStore =
+            InstrumentationContext.get(ForkJoinTask.class, Span.class);
+        ExecutorInstrumentationUtils.setupState(contextStore, task, span);
       }
-      return null;
-    }
-
-    @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
-    public static void exitJobSubmit(
-        @Advice.This final Executor executor,
-        @Advice.Enter final State state,
-        @Advice.Thrown final Throwable throwable) {
-      ExecutorInstrumentationUtils.cleanUpOnMethodExit(executor, state, throwable);
     }
   }
 }

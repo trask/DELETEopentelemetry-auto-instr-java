@@ -1,8 +1,8 @@
 package context
 
+import datadog.trace.agent.tooling.Config
 import datadog.trace.agent.test.AgentTestRunner
 import datadog.trace.agent.test.utils.ClasspathUtils
-import datadog.trace.api.Config
 import datadog.trace.util.gc.GCUtils
 import net.bytebuddy.agent.ByteBuddyAgent
 import net.bytebuddy.utility.JavaModule
@@ -18,11 +18,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.concurrent.atomic.AtomicReference
 
-import static context.ContextTestInstrumentation.IncorrectCallUsageKeyClass
-import static context.ContextTestInstrumentation.IncorrectContextClassUsageKeyClass
-import static context.ContextTestInstrumentation.IncorrectKeyClassUsageKeyClass
-import static context.ContextTestInstrumentation.KeyClass
-import static context.ContextTestInstrumentation.UntransformableKeyClass
+import static context.ContextTestInstrumentation.*
 
 class FieldBackedProviderTest extends AgentTestRunner {
 

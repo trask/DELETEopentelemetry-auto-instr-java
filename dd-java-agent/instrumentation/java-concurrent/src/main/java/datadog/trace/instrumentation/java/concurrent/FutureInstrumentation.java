@@ -9,9 +9,7 @@ import static net.bytebuddy.matcher.ElementMatchers.returns;
 
 import com.google.auto.service.AutoService;
 import datadog.trace.agent.tooling.Instrumenter;
-import datadog.trace.bootstrap.ContextStore;
-import datadog.trace.bootstrap.InstrumentationContext;
-import datadog.trace.bootstrap.instrumentation.java.concurrent.State;
+import io.opentelemetry.trace.Span;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -96,7 +94,7 @@ public final class FutureInstrumentation extends Instrumenter.Default {
   @Override
   public Map<String, String> contextStore() {
     final Map<String, String> map = new HashMap<>();
-    map.put(Future.class.getName(), State.class.getName());
+    map.put(Future.class.getName(), Span.class.getName());
     return Collections.unmodifiableMap(map);
   }
 
@@ -112,12 +110,15 @@ public final class FutureInstrumentation extends Instrumenter.Default {
       // Try to close continuation even if future was not cancelled:
       // the expectation is that continuation should be closed after 'cancel'
       // is called, one way or another
-      final ContextStore<Future, State> contextStore =
-          InstrumentationContext.get(Future.class, State.class);
-      final State state = contextStore.get(future);
-      if (state != null) {
-        state.closeContinuation();
-      }
+
+      // TODO trask: revisit purpose of continuation
+
+      //      final ContextStore<Future, State> contextStore =
+      //          InstrumentationContext.get(Future.class, State.class);
+      //      final State state = contextStore.get(future);
+      //      if (state != null) {
+      //        state.closeContinuation();
+      //      }
     }
   }
 }

@@ -1,11 +1,10 @@
 import com.google.common.io.Files
-import datadog.opentracing.DDSpan
-import datadog.trace.agent.test.asserts.ListWriterAssert
-import datadog.trace.api.DDSpanTypes
+import datadog.trace.agent.test.asserts.InMemoryExporterAssert
+import datadog.trace.agent.tooling.AttributeNames
+import datadog.trace.agent.tooling.DDSpanTypes
 import groovy.transform.stc.ClosureParams
 import groovy.transform.stc.SimpleType
-import io.opentracing.tag.Tags
-import javax.servlet.Servlet
+import io.opentelemetry.proto.trace.v1.Span
 import org.apache.catalina.Context
 import org.apache.catalina.connector.Request
 import org.apache.catalina.connector.Response
@@ -16,13 +15,10 @@ import org.apache.catalina.valves.ErrorReportValve
 import org.apache.tomcat.JarScanFilter
 import org.apache.tomcat.JarScanType
 
+import javax.servlet.Servlet
+
 import static datadog.trace.agent.test.asserts.TraceAssert.assertTrace
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.AUTH_REQUIRED
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.ERROR
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.EXCEPTION
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.NOT_FOUND
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.REDIRECT
-import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.SUCCESS
+import static datadog.trace.agent.test.base.HttpServerTest.ServerEndpoint.*
 import static datadog.trace.agent.test.utils.TraceUtils.basicSpan
 
 abstract class TomcatServlet3Test extends AbstractServlet3Test<Tomcat, Context> {
@@ -58,7 +54,7 @@ abstract class TomcatServlet3Test extends AbstractServlet3Test<Tomcat, Context> 
     (tomcatServer.host as StandardHost).errorReportValveClass = ErrorHandlerValve.name
 
     tomcatServer.start()
-    
+
     return tomcatServer
   }
 
@@ -204,19 +200,19 @@ abstract class TomcatDispatchTest extends TomcatServlet3Test {
   @Override
   void cleanAndAssertTraces(
     final int size,
-    @ClosureParams(value = SimpleType, options = "datadog.trace.agent.test.asserts.ListWriterAssert")
-    @DelegatesTo(value = ListWriterAssert, strategy = Closure.DELEGATE_FIRST)
+    @ClosureParams(value = SimpleType, options = "datadog.trace.agent.test.asserts.InMemoryExporterAssert")
+    @DelegatesTo(value = InMemoryExporterAssert, strategy = Closure.DELEGATE_FIRST)
     final Closure spec) {
 
     // If this is failing, make sure HttpServerTestAdvice is applied correctly.
     if (lastRequest == NOT_FOUND) {
-      TEST_WRITER.waitForTraces(size * 2) // (test and servlet/controller traces
+      TEST_EXPORTER.waitForTraces(size * 2) // (test and servlet/controller traces
     } else {
-      TEST_WRITER.waitForTraces(size * 3) // (test, dispatch, and servlet/controller traces
+      TEST_EXPORTER.waitForTraces(size * 3) // (test, dispatch, and servlet/controller traces
     }
-    // TEST_WRITER is a CopyOnWriteArrayList, which doesn't support remove()
-    def toRemove = TEST_WRITER.findAll {
-      it.size() == 1 && it.get(0).operationName == "TEST_SPAN"
+    // TEST_EXPORTER traces is a CopyOnWriteArrayList, which doesn't support remove() on iterator
+    def toRemove = TEST_EXPORTER.traces.findAll {
+      it.size() == 1 && it.get(0).name == "TEST_SPAN"
     }
     assert toRemove.size() == size
     toRemove.each {
@@ -224,7 +220,7 @@ abstract class TomcatDispatchTest extends TomcatServlet3Test {
         basicSpan(it, 0, "TEST_SPAN", "ServerEntry")
       }
     }
-    TEST_WRITER.removeAll(toRemove)
+    TEST_EXPORTER.traces.removeAll(toRemove)
 
     if (lastRequest == NOT_FOUND) {
       // Tomcat won't "dispatch" an unregistered url
@@ -233,21 +229,20 @@ abstract class TomcatDispatchTest extends TomcatServlet3Test {
     }
 
     // Validate dispatch trace
-    def dispatchTraces = TEST_WRITER.findAll {
-      it.size() == 1 && it.get(0).resourceName.contains("/dispatch/")
+    def dispatchTraces = TEST_EXPORTER.traces.findAll {
+      it.size() == 1 && it.get(0).attributes.attributeMapMap[AttributeNames.RESOURCE_NAME].stringValue.contains("/dispatch/")
     }
     assert dispatchTraces.size() == size
-    dispatchTraces.each { List<DDSpan> dispatchTrace ->
+    dispatchTraces.each { List<Span> dispatchTrace ->
       assertTrace(dispatchTrace, 1) {
         def endpoint = lastRequest
         span(0) {
-          serviceName expectedServiceName()
-          operationName expectedOperationName()
-          resourceName endpoint.status == 404 ? "404" : "GET ${endpoint.resolve(address).path}"
-          spanType DDSpanTypes.HTTP_SERVER
-          errored endpoint.errored
+          spanKind Span.SpanKind.SERVER
+          spanName expectedOperationName()
           // we can't reliably assert parent or child relationship here since both are tested.
           tags {
+            "$AttributeNames.SPAN_TYPE" DDSpanTypes.HTTP_SERVER
+
             "servlet.context" "/$context"
             "servlet.dispatch" endpoint.path
             "span.origin.type" {
@@ -255,25 +250,24 @@ abstract class TomcatDispatchTest extends TomcatServlet3Test {
             }
 
             defaultTags(true)
-            "$Tags.COMPONENT.key" serverDecorator.component()
+            "$AttributeNames.COMPONENT" serverDecorator.component()
             if (endpoint.errored) {
-              "$Tags.ERROR.key" endpoint.errored
+              "$AttributeNames.ERROR" true
               "error.msg" { it == null || it == EXCEPTION.body }
               "error.type" { it == null || it == Exception.name }
               "error.stack" { it == null || it instanceof String }
             }
-            "$Tags.HTTP_STATUS.key" endpoint.status
-            "$Tags.HTTP_URL.key" "${endpoint.resolve(address)}"
-            "$Tags.PEER_HOSTNAME.key" { it == "localhost" || it == "127.0.0.1" }
-            "$Tags.PEER_PORT.key" Integer
-            "$Tags.PEER_HOST_IPV4.key" { it == null || it == "127.0.0.1" } // Optional
-            "$Tags.HTTP_METHOD.key" "GET"
-            "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
+            "$AttributeNames.HTTP_STATUS" endpoint.status
+            "$AttributeNames.HTTP_URL" "${endpoint.resolve(address)}"
+            "$AttributeNames.PEER_HOSTNAME" { it == "localhost" || it == "127.0.0.1" }
+            "$AttributeNames.PEER_PORT" Integer
+            "$AttributeNames.PEER_HOST_IPV4" { it == null || it == "127.0.0.1" } // Optional
+            "$AttributeNames.HTTP_METHOD" "GET"
           }
         }
       }
       // Make sure that the trace has a span with the dispatchTrace as a parent.
-      assert TEST_WRITER.any { it.any { it.parentId == dispatchTrace[0].spanId } }
+      assert TEST_EXPORTER.traces.any { it.any { it.parentId == dispatchTrace[0].spanId } }
     }
   }
 }

@@ -12,9 +12,7 @@ import static net.bytebuddy.matcher.ElementMatchers.not;
 import com.google.auto.service.AutoService;
 import datadog.trace.agent.tooling.Instrumenter;
 import datadog.trace.bootstrap.CallDepthThreadLocalMap;
-import io.opentracing.Span;
-import io.opentracing.propagation.Format;
-import io.opentracing.util.GlobalTracer;
+import io.opentelemetry.trace.Span;
 import java.util.Map;
 import javax.servlet.AsyncContext;
 import javax.servlet.ServletRequest;
@@ -70,11 +68,13 @@ public final class AsyncContextInstrumentation extends Instrumenter.Default {
         // Override propagation headers by injecting attributes from the current span
         // into the new request
         if (request instanceof HttpServletRequest) {
-          GlobalTracer.get()
-              .inject(
-                  span.context(),
-                  Format.Builtin.TEXT_MAP,
-                  new HttpServletRequestInjectAdapter((HttpServletRequest) request));
+          // TODO trask
+          // GlobalTracer.get()
+          //     .getHttpTextFormat()
+          //     .inject(
+          //         span.context(),
+          //         (HttpServletRequest) request,
+          //         HttpServletRequestInjectAdapter.INSTANCE);
         }
         final String path;
         if (args.length == 1 && args[0] instanceof String) {
@@ -84,7 +84,7 @@ public final class AsyncContextInstrumentation extends Instrumenter.Default {
         } else {
           path = "true";
         }
-        span.setTag("servlet.dispatch", path);
+        span.setAttribute("servlet.dispatch", path);
       }
       return true;
     }

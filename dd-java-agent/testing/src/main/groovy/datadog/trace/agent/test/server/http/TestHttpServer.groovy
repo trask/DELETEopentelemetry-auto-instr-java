@@ -1,12 +1,9 @@
 package datadog.trace.agent.test.server.http
 
-import datadog.opentracing.DDSpan
-import datadog.trace.agent.test.asserts.ListWriterAssert
-import io.opentracing.SpanContext
-import io.opentracing.Tracer
-import io.opentracing.propagation.Format
-import io.opentracing.tag.Tags
-import io.opentracing.util.GlobalTracer
+import datadog.trace.agent.test.asserts.InMemoryExporterAssert
+import datadog.trace.agent.tooling.GlobalTracer
+import io.opentelemetry.proto.trace.v1.Span
+import io.opentelemetry.trace.Tracer
 import org.eclipse.jetty.http.HttpMethods
 import org.eclipse.jetty.server.Handler
 import org.eclipse.jetty.server.Request
@@ -94,18 +91,17 @@ class TestHttpServer implements AutoCloseable {
     clone(handlers)
   }
 
-  static distributedRequestTrace(ListWriterAssert traces, int index, DDSpan parentSpan = null) {
+  static distributedRequestTrace(InMemoryExporterAssert traces, int index, Span parentSpan = null) {
     traces.trace(index, 1) {
       span(0) {
-        operationName "test-http-server"
-        errored false
+        spanKind Span.SpanKind.SERVER
+        spanName "test-http-server"
         if (parentSpan == null) {
           parent()
         } else {
           childOf(parentSpan)
         }
         tags {
-          "$Tags.SPAN_KIND.key" Tags.SPAN_KIND_SERVER
           defaultTags(parentSpan != null)
         }
       }
@@ -228,21 +224,24 @@ class TestHttpServer implements AutoCloseable {
     }
 
     void handleDistributedRequest() {
+      println "handleDistributedRequest:1"
       boolean isDDServer = true
       if (request.getHeader("is-dd-server") != null) {
         isDDServer = Boolean.parseBoolean(request.getHeader("is-dd-server"))
       }
+      println "handleDistributedRequest:2"
       if (isDDServer) {
-        final SpanContext extractedContext =
-          tracer.extract(Format.Builtin.HTTP_HEADERS, new HttpServletRequestExtractAdapter(req))
         def builder = tracer
-          .buildSpan("test-http-server")
-          .withTag(Tags.SPAN_KIND.key, Tags.SPAN_KIND_SERVER)
-        if (extractedContext != null) {
-          builder.asChildOf(extractedContext)
+          .spanBuilder("test-http-server")
+          .setSpanKind(io.opentelemetry.trace.Span.Kind.SERVER)
+        try {
+          builder.setParent(tracer.getHttpTextFormat().extract(req, new HttpServletRequestExtractAdapter()))
+        } catch (IllegalArgumentException e) {
+          // TODO trask: open telemetry api that doesn't throw exception?
         }
-        builder.start().finish()
+        builder.startSpan().end()
       }
+      println "handleDistributedRequest:3"
     }
 
     class RequestApi {

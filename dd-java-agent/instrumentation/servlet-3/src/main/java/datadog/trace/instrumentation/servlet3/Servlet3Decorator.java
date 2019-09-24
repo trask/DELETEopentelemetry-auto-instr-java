@@ -1,7 +1,7 @@
 package datadog.trace.instrumentation.servlet3;
 
 import datadog.trace.agent.decorator.HttpServerDecorator;
-import io.opentracing.Span;
+import io.opentelemetry.trace.Span;
 import java.net.URI;
 import java.net.URISyntaxException;
 import javax.servlet.ServletException;
@@ -56,18 +56,17 @@ public class Servlet3Decorator
   public Span onRequest(final Span span, final HttpServletRequest request) {
     assert span != null;
     if (request != null) {
-      span.setTag("servlet.context", request.getContextPath());
+      span.setAttribute("servlet.context", request.getContextPath());
     }
     return super.onRequest(span, request);
   }
 
   @Override
-  public Span onError(final Span span, final Throwable throwable) {
+  public void onError(final Span span, final Throwable throwable) {
     if (throwable instanceof ServletException && throwable.getCause() != null) {
       super.onError(span, throwable.getCause());
     } else {
       super.onError(span, throwable);
     }
-    return span;
   }
 }

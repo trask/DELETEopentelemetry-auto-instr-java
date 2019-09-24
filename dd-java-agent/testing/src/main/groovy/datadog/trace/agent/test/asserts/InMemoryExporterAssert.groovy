@@ -1,9 +1,9 @@
 package datadog.trace.agent.test.asserts
 
-import datadog.opentracing.DDSpan
-import datadog.trace.common.writer.ListWriter
+import datadog.trace.agent.test.InMemoryExporter
 import groovy.transform.stc.ClosureParams
 import groovy.transform.stc.SimpleType
+import io.opentelemetry.proto.trace.v1.Span
 import org.codehaus.groovy.runtime.powerassert.PowerAssertionError
 import org.spockframework.runtime.Condition
 import org.spockframework.runtime.ConditionNotSatisfiedError
@@ -11,23 +11,23 @@ import org.spockframework.runtime.model.TextPosition
 
 import static TraceAssert.assertTrace
 
-class ListWriterAssert {
-  private final ListWriter writer
+class InMemoryExporterAssert {
+  private final InMemoryExporter exporter
   private final int size
   private final Set<Integer> assertedIndexes = new HashSet<>()
 
-  private ListWriterAssert(ListWriter writer) {
-    this.writer = writer
-    size = writer.size()
+  private InMemoryExporterAssert(InMemoryExporter exporter) {
+    this.exporter = exporter
+    size = exporter.traces.size()
   }
 
-  static void assertTraces(ListWriter writer, int expectedSize,
-                           @ClosureParams(value = SimpleType, options = ['datadog.trace.agent.test.asserts.ListWriterAssert'])
-                           @DelegatesTo(value = ListWriterAssert, strategy = Closure.DELEGATE_FIRST) Closure spec) {
+  static void assertTraces(InMemoryExporter exporter, int expectedSize,
+                           @ClosureParams(value = SimpleType, options = ['datadog.trace.agent.test.asserts.InMemoryExporterAssert'])
+                           @DelegatesTo(value = InMemoryExporterAssert, strategy = Closure.DELEGATE_FIRST) Closure spec) {
     try {
-      writer.waitForTraces(expectedSize)
-      assert writer.size() == expectedSize
-      def asserter = new ListWriterAssert(writer)
+      exporter.waitForTraces(expectedSize)
+      assert exporter.traces.size() == expectedSize
+      def asserter = new InMemoryExporterAssert(exporter)
       def clone = (Closure) spec.clone()
       clone.delegate = asserter
       clone.resolveStrategy = Closure.DELEGATE_FIRST
@@ -53,8 +53,8 @@ class ListWriterAssert {
     }
   }
 
-  List<DDSpan> trace(int index) {
-    return writer.get(index)
+  List<Span> trace(int index) {
+    return exporter.traces.get(index)
   }
 
   void trace(int index, int expectedSize,
@@ -63,11 +63,11 @@ class ListWriterAssert {
     if (index >= size) {
       throw new ArrayIndexOutOfBoundsException(index)
     }
-    if (writer.size() != size) {
+    if (exporter.traces.size() != size) {
       throw new ConcurrentModificationException("ListWriter modified during assertion")
     }
     assertedIndexes.add(index)
-    assertTrace(writer.get(index), expectedSize, spec)
+    assertTrace(exporter.traces.get(index), expectedSize, spec)
   }
 
   void assertTracesAllVerified() {

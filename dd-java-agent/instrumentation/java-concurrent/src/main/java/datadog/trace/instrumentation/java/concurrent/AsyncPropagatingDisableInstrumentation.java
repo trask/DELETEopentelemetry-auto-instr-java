@@ -6,12 +6,11 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 
 import com.google.auto.service.AutoService;
 import com.google.common.collect.ImmutableMap;
+import datadog.trace.agent.tooling.GlobalTracer;
 import datadog.trace.agent.tooling.Instrumenter;
-import datadog.trace.context.TraceScope;
-import io.opentracing.Scope;
-import io.opentracing.ScopeManager;
-import io.opentracing.noop.NoopSpan;
-import io.opentracing.util.GlobalTracer;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.trace.DefaultSpan;
+import io.opentelemetry.trace.Span;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -86,10 +85,9 @@ public final class AsyncPropagatingDisableInstrumentation implements Instrumente
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
     public static Scope enter() {
-      final ScopeManager scopeManager = GlobalTracer.get().scopeManager();
-      final Scope scope = scopeManager.active();
-      if (scope instanceof TraceScope && ((TraceScope) scope).isAsyncPropagating()) {
-        return scopeManager.activate(NoopSpan.INSTANCE, false);
+      final Span span = GlobalTracer.get().getCurrentSpan();
+      if (span.getContext().isValid()) {
+        return GlobalTracer.get().withSpan(DefaultSpan.getInvalid());
       }
       return null;
     }
